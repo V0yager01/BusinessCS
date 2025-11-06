@@ -49,7 +49,3 @@ async def create_comment(task_uuid, author, values):
         return result
     except Exception as e:
         raise json_exception
-
-
-def check_is_author(task_author, user_uuid):
-    return task_author == user_uuid

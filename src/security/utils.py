@@ -56,6 +56,12 @@ async def validate_token(token: str, user_repo):
         raise ValueError('invalid token')
     return user
 
+
+def check_is_author(task_author, user_uuid):
+    return task_author == user_uuid
+
+
+
 # TODO наверно на две отдельные зависимости разделю
 # async def check_is_author(uuid, user_repo, user):
 #     task = await user_repo.select_task_by_uuid(uuid)

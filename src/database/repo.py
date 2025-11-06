@@ -27,7 +27,7 @@ class BaseRepo():
                 await session.refresh(task)
                 return task
             except IntegrityError as e:
-                raise ValueError(f'Invalid data values')
+                raise e
             except SQLAlchemyError as e:
                 raise RuntimeError(f'database error: {e}')
 

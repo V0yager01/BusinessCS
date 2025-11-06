@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from src.security.depends import user_auth
 
 from .service import create_user, get_tokens
-from .shemas import RegisterUserShema, ProvideUserCredShema, TokenResponseShema, ProvideUserCredShema, UserResponseShema
+from .schemas import RegisterUserShema, ProvideUserCredShema, TokenResponseShema, ProvideUserCredShema, UserResponseShema
 
 router = APIRouter(
     prefix='/user',

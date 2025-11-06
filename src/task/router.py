@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends
 
 from src.security.depends import user_auth
 from src.security.exceptions import authorize_exception, json_exception, exception_404
+from src.security.utils import check_is_author
 
-from .service import create_task, get_task_by_uuid, check_is_author, remove_task, update_task, create_comment, create_task
-from .shemas import CreateTaskShemas, UpdateTaskShema, TaskResponse, SetPerformerShema, SetStatusShema, CommentBaseShema, TaskCommentsResponse, CommentResponseShema
+from .service import create_task, get_task_by_uuid, remove_task, update_task, create_comment, create_task
+from .schemas import CreateTaskShemas, UpdateTaskShema, TaskResponse, SetPerformerShema, SetStatusShema, CommentBaseShema, TaskCommentsResponse, CommentResponseShema
 
 router = APIRouter(
     prefix='/task',
@@ -54,8 +55,9 @@ async def delete_task(task_uuid: UUID, user: Annotated[str, Depends(user_is_auth
 
 @router.patch('{task_uuid}/performer')
 async def assign_performer(performer_shema: SetPerformerShema, task: Annotated[str, Depends(user_is_author)]) -> TaskResponse:
-    performer = performer_shema.model_dump()
-    task_updated = await update_task(task.uuid, performer)
+    values_to_update = performer_shema.model_dump()
+    values_to_update.update(status='in progress')
+    task_updated = await update_task(task.uuid, values_to_update)
     return task_updated
 
 

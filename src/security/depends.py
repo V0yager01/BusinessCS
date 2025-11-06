@@ -29,6 +29,12 @@ async def user_is_admin(user: Annotated[str, Depends(user_auth)]):
     return user
 
 
+async def user_is_manager(user: Annotated[str, Depends(user_auth)]):
+    if not user.role.value == 'manager' or user.role.value == 'admin':
+        raise authorize_exception
+    return user
+
+
 
 # async def get_current_user(token: Annotated[str, Header(alias='Authorization')]):
 #     payload = decode_token(token)
