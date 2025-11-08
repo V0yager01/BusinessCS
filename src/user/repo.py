@@ -9,7 +9,7 @@ from src.user.models import User
 
 class UserRepo(BaseRepo):
     model = User
-    async_session = async_session
+    async_session = async_session()
 
     async def get_user_by_conditions(self, conditions):
         async with self.async_session() as session:
@@ -23,6 +23,8 @@ class UserRepo(BaseRepo):
                 user_model = User(**user_data)
                 session.add(user_model)
                 await session.commit()
+                await session.refresh(user_model)
+                return user_data
             except IntegrityError as e:
                 raise ValueError(f'Invalid user credentials')
             except SQLAlchemyError as e:

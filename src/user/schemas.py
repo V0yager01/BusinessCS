@@ -18,7 +18,6 @@ class UserResponseShema(UserBaseShema):
 
 class TokenResponseShema(BaseModel):
     access_token: str
-    refresh_token: str
 
 
 class ProvideUserCredShema(BaseModel):

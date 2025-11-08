@@ -6,14 +6,13 @@ from src.security.utils import create_token, hash_password, check_user_credentia
 
 from .repo import UserRepo
 
-#TODO вызывать классические exception и уже в route вызывать src.security.exceptions
-
 
 async def create_user(user_data):
     user_repo = UserRepo()
     user_data['password'] = hash_password(user_data['password'])
     try:
-        await user_repo.create_user(user_data)
+        user = await user_repo.create_user(user_data)
+        return user
     except ValueError:
         raise register_exception
     except RuntimeError:
@@ -27,8 +26,4 @@ async def get_tokens(user_credentials):
     access_token = create_token(payload_data={"uuid": str(user.uuid),
                                               'type':'access_token'},
                                               expire_delta=1500)
-    refresh_token = create_token(payload_data={"uuid": str(user.uuid),
-                                               'type':'refresh_token'},
-                                               expire_delta=60)
-    return {'access_token': access_token,
-            'refresh_token': refresh_token}
+    return {'access_token': access_token}

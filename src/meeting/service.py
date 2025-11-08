@@ -53,9 +53,6 @@ async def append_users_to_meeting(meeting_uuid, users):
     return {'success': success,
             'error': error}
 
-async def users_meeting_list(user_uuid):
-    pass
-
 
 async def remove_meeting(meeting_uuid):
     meetrepo = MeetingRepo()

@@ -9,7 +9,7 @@ from .models import TeamUser, Team
 
 
 class TeamRepo(BaseRepo):
-    async_session = async_session
+    async_session = async_session()
     model = Team
 
     async def get_team_by_uuid(self, uuid):
