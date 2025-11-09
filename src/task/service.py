@@ -6,13 +6,10 @@ from .repo import TaskRepo, CommentRepo
 
 async def create_task(task_data):
     taskrepo = TaskRepo()
-    try:        
+    try:
         return await taskrepo.insert_model(task_data)
     except Exception as e:
         raise e
-
-
-#TODO Сделать базовый класс BaseRepo с select по uuid, вынести все проверки по uuid в security/utils.py
 
 async def get_task_by_uuid(uuid):
     taskrepo = TaskRepo()

@@ -8,7 +8,7 @@ from .repo import TeamRepo, TeamUserRepo
 async def create_team(team_data):
     teamrepo = TeamRepo()
     try:
-        await teamrepo.insert_model(team_data)
+        return await teamrepo.insert_model(team_data)
     except Exception as e:
         raise e
 

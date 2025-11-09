@@ -1,26 +1,24 @@
 from src.team.service import (
     create_team,
-    get_full_team,
-    add_user_to_team,
-    remove_user_to_team,
-    change_userteam_role,
+    get_full_team
 )
 
 
-async def test_create_team(test_team_data):
-    team = await create_team(test_team_data)
+async def test_create_team(test_create_team):
+    team = await create_team(test_create_team)
     assert team
 
 
-# async def test_get_team_by_uuid(test_team_uuid):
-#     team = await get_full_team(test_team_uuid)
-#     assert team
+async def test_get_team_by_uuid(get_first_team_uuid):
+    uuid = get_first_team_uuid
+    team = await get_full_team(uuid)
+    assert team
 
 
-# async def test_add_and_remove_member(test_team_uuid, test_user_uuid, session_db):
+# async def test_add_and_remove_member(test_team_uuid, test_user_uuid):
 #     added = await add_user_to_team(test_team_uuid, test_user_uuid)
 #     assert added
-
+    
 #     removed = await remove_user_to_team(test_team_uuid, test_user_uuid)
 #     assert removed
 

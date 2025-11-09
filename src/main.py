@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from sqladmin import Admin, ModelView
 
-from src.database.config import async_engine, Base, sync_engine
+from src.database.config import async_engine, Base
 
 from src.team.models import Team, TeamUser
 from src.team.router import router as team_router

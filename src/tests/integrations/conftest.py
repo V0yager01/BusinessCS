@@ -1,28 +1,22 @@
+import asyncio
+
 import pytest
 import pytest_asyncio
 
+from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-from src.database import config
+from src.database.config import Base, async_engine
+
+from src.team.models import Team, TeamUser
+from src.user.models import User
+from src.user.repo import UserRepo
+from src.task.models import Task, Comment
+from src.meeting.models import UserMeeting, Meeting
 
 
 from src.loader import settings
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-@pytest.fixture(scope='function')
-async def test_session(monkeypatch):
-    async_engine = create_async_engine(settings.pg_url, echo=True)
-    async_session = async_sessionmaker(async_engine)
-    print("До:", config.async_session)
-    monkeypatch.setattr(config, 'async_session', async_session)
-    print("После:", config.async_session)
-    yield async_session
-
 
 
 @pytest.fixture()

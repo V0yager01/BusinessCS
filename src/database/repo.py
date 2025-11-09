@@ -6,6 +6,12 @@ class BaseRepo():
     async_session = None
     model = None
 
+    async def select_first_record(self):
+        async with self.async_session() as session:
+            query = select(self.model).limit(1)
+            result = await session.execute(query)
+            return result.scalar_one_or_none()
+
     async def select_model_by_uuid(self, uuid):
         async with self.async_session() as session:
             query = select(self.model).filter_by(uuid=uuid)

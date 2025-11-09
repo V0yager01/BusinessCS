@@ -6,9 +6,9 @@ from src.loader import settings
 
 from contextlib import asynccontextmanager
 
-sync_engine = create_engine(settings.pg_url_sync, echo=True)
+# sync_engine = create_engine(settings.pg_url_sync, echo=True)
 async_engine = create_async_engine(settings.pg_url, echo=True)
-#async_session_factory = async_sessionmaker(async_engine)
+async_session_factory = async_sessionmaker(async_engine)
 
 
 class Base(DeclarativeBase):
@@ -16,4 +16,6 @@ class Base(DeclarativeBase):
 
 
 def async_session():
-    return async_sessionmaker(async_engine)
+    async_engine = create_async_engine(settings.pg_url, echo=True)
+    async_session_factory = async_sessionmaker(async_engine)
+    return async_session_factory
