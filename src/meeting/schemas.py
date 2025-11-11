@@ -19,3 +19,5 @@ class CreateMeetingBaseShema(BaseModel):
 
 class UsersToInviteShema(BaseModel):
     uuid: list[UUID]
+
+

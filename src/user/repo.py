@@ -9,16 +9,15 @@ from src.user.models import User
 
 class UserRepo(BaseRepo):
     model = User
-    async_session = async_session()
 
     async def get_user_by_conditions(self, conditions):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             query = select(User).filter_by(**conditions)
             result = await session.execute(query)
             return result.scalar_one_or_none()
 
     async def create_user(self, user_data):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             try:
                 user_model = User(**user_data)
                 session.add(user_model)

@@ -9,11 +9,10 @@ from .models import Task, Comment
 
 
 class TaskRepo(BaseRepo):
-    async_session = async_session
     model = Task
 
     async def select_full_task_by_uuid(self, uuid):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             query = select(self.model).filter_by(uuid=uuid).options(selectinload(self.model.comments))
             result = await session.execute(query)
             return result.unique().scalar_one_or_none()

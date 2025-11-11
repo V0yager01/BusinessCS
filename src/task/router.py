@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
+from src.database.config import get_db
 from src.security.depends import user_auth
 from src.security.exceptions import authorize_exception, json_exception, exception_404
 from src.security.utils import check_is_author
@@ -17,8 +18,9 @@ router = APIRouter(
 
 
 async def user_is_author(task_uuid: UUID,
-                         user: Annotated[str, Depends(user_auth)]):
-    task = await get_task_by_uuid(task_uuid)
+                         user: Annotated[str, Depends(user_auth)],
+                         session=Depends(get_db)):
+    task = await get_task_by_uuid(task_uuid, session)
     if not task:
         raise exception_404
     if not check_is_author(task.author, user.uuid):
@@ -27,53 +29,68 @@ async def user_is_author(task_uuid: UUID,
 
 
 @router.get('')
-async def get_task(task_uuid: UUID, user: Annotated[str, Depends(user_auth)]) -> TaskCommentsResponse:
-    task_model = await get_task_by_uuid(task_uuid)
+async def get_task(task_uuid: UUID,
+                   user: Annotated[str, Depends(user_auth)],
+                   session=Depends(get_db)) -> TaskCommentsResponse:
+    task_model = await get_task_by_uuid(task_uuid, session)
     task_shema = TaskCommentsResponse.model_validate(task_model)
     return task_shema
 
 
 @router.post('')
-async def post_task(task_data: CreateTaskShemas, user: Annotated[str, Depends(user_auth)]) -> TaskResponse:
+async def post_task(task_data: CreateTaskShemas,
+                    user: Annotated[str, Depends(user_auth)],
+                    session=Depends(get_db)) -> TaskResponse:
     task_dict = task_data.model_dump()
     task_dict['author'] = user.uuid
-    res = await create_task(task_dict)
+    res = await create_task(task_dict, session)
     return res
 
 
 @router.patch('/{task_uuid}')
-async def patch_task(task_uuid: UUID, task_data: UpdateTaskShema, user: Annotated[str, Depends(user_is_author)]) -> TaskResponse:
+async def patch_task(task_uuid: UUID, task_data: UpdateTaskShema,
+                     user: Annotated[str, Depends(user_is_author)],
+                     session=Depends(get_db)) -> TaskResponse:
     task_dict = task_data.model_dump(exclude_unset=True)
-    task_updated = await update_task(task_uuid, task_dict)
+    task_updated = await update_task(task_uuid, task_dict, session)
     return task_updated
 
 
 @router.delete('')
-async def delete_task(task_uuid: UUID, user: Annotated[str, Depends(user_is_author)]):
-    await remove_task(task_uuid)
+async def delete_task(task_uuid: UUID,
+                      user: Annotated[str, Depends(user_is_author)],
+                      session=Depends(get_db)):
+    await remove_task(task_uuid, session)
 
 
-@router.patch('{task_uuid}/performer')
-async def assign_performer(performer_shema: SetPerformerShema, task: Annotated[str, Depends(user_is_author)]) -> TaskResponse:
+@router.patch('/{task_uuid}/performer')
+async def assign_performer(performer_shema: SetPerformerShema,
+                           task: Annotated[str, Depends(user_is_author)],
+                           session=Depends(get_db)) -> TaskResponse:
     values_to_update = performer_shema.model_dump()
     values_to_update.update(status='in progress')
-    task_updated = await update_task(task.uuid, values_to_update)
+    task_updated = await update_task(task.uuid, values_to_update, session)
     return task_updated
 
 
-@router.patch('{task_uuid}/status')
-async def change_status(status_shema: SetStatusShema, task: Annotated[str, Depends(user_is_author)])  -> TaskResponse:
+@router.patch('/{task_uuid}/status')
+async def change_status(status_shema: SetStatusShema,
+                        task: Annotated[str, Depends(user_is_author)],
+                        session=Depends(get_db))  -> TaskResponse:
     status = status_shema.model_dump()
-    task_updated = await update_task(task.uuid, status)
+    task_updated = await update_task(task.uuid, status, session)
     return task_updated
 
 
-@router.post('{task_uuid}/comment')
+@router.post('/{task_uuid}/comment')
 async def post_comment(task_uuid: UUID,
                        comment_schema: CommentBaseShema,
-                       user: Annotated[str, Depends(user_auth)]) -> CommentResponseShema:
+                       user: Annotated[str, Depends(user_auth)],
+                       session=Depends(get_db)) -> CommentResponseShema:
     comment = comment_schema.model_dump()
-    response = await create_comment(task_uuid=task_uuid,
-                                    author=user.uuid,
-                                    values=comment)
+    response = await create_comment(task_uuid,
+                                    user.uuid,
+                                    comment,
+                                    session
+                                    )
     return response

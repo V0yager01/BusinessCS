@@ -7,8 +7,8 @@ from src.security.exceptions import json_exception
 from .repo import UserMeetingRepo, MeetingRepo
 
 
-async def create_meeting(time):
-    repo = MeetingRepo()
+async def create_meeting(time, session):
+    repo = MeetingRepo(session)
     minutes = time.get('meet_duration_minutes', 0)
     hours = time.get('meet_duration_hour', 0)
     start_at = time['start_at']
@@ -24,8 +24,8 @@ async def create_meeting(time):
         raise e
 
 
-async def append_users_to_meeting(meeting_uuid, users):
-    usermeetrepo = UserMeetingRepo()
+async def append_users_to_meeting(meeting_uuid, users, session):
+    usermeetrepo = UserMeetingRepo(session)
     success = []
     error = []
     meet_model = await get_meet(meeting_uuid)
@@ -54,8 +54,8 @@ async def append_users_to_meeting(meeting_uuid, users):
             'error': error}
 
 
-async def remove_meeting(meeting_uuid):
-    meetrepo = MeetingRepo()
+async def remove_meeting(meeting_uuid, session):
+    meetrepo = MeetingRepo(session)
     try:
         await meetrepo.delete_model(meeting_uuid)
     except Exception as e:
@@ -69,8 +69,8 @@ def is_user_free(user_reserved_time, meeting_time):
     return True
 
 
-async def get_user_meet_list(user_uuid):
-    usermeetrepo = UserMeetingRepo()
+async def get_user_meet_list(user_uuid, session):
+    usermeetrepo = UserMeetingRepo(session)
     try:
         user_meets = await usermeetrepo.select_time_by_useruuid(user_uuid)
         return user_meets
@@ -78,8 +78,8 @@ async def get_user_meet_list(user_uuid):
         raise e
 
 
-async def get_meet(meet_uuid):
-    meetrepo = MeetingRepo()
+async def get_meet(meet_uuid, session):
+    meetrepo = MeetingRepo(session)
     try:
         meet = await meetrepo.select_model_by_uuid(meet_uuid)
         return meet

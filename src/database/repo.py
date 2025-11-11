@@ -3,29 +3,31 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 
 class BaseRepo():
-    async_session = None
     model = None
 
+    def __init__(self, session):
+        self.async_session = session
+
     async def select_first_record(self):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             query = select(self.model).limit(1)
             result = await session.execute(query)
             return result.scalar_one_or_none()
 
     async def select_model_by_uuid(self, uuid):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             query = select(self.model).filter_by(uuid=uuid)
             result = await session.execute(query)
             return result.scalar_one_or_none()
 
     async def get_model_by_conditions(self, conditions):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             query = select(self.model).filter_by(**conditions)
             result = await session.execute(query)
             return result.scalars().all()
 
     async def insert_model(self, data):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             try:
                 task = self.model(**data)
                 session.add(task)
@@ -38,7 +40,7 @@ class BaseRepo():
                 raise RuntimeError(f'database error: {e}')
 
     async def update_model(self, uuid, values):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             try:
                 query = update(self.model).filter_by(uuid=uuid).values(**values)
                 await session.execute(query)
@@ -49,7 +51,7 @@ class BaseRepo():
                 raise RuntimeError(f'database error: {e}')
 
     async def delete_model(self, uuid):
-        async with self.async_session() as session:
+        async with self.async_session as session:
             try:
                 query = delete(self.model).filter_by(uuid=uuid)
                 await session.execute(query)

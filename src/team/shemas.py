@@ -19,6 +19,8 @@ class TeamBaseShema(BaseModel):
     name: str
     description: str | None = None
 
+class CreateTeamResponseShema(TeamBaseShema):
+    uuid: UUID
 
 class TeamResponseShema(BaseModel):
     uuid: UUID

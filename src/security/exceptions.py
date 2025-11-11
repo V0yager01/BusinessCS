@@ -18,5 +18,5 @@ authorize_exception = HTTPException(detail='You do not have permission to access
 json_exception = HTTPException(detail='Invalid json parameters',
                                status_code=status.HTTP_400_BAD_REQUEST)
 
-exception_404 = HTTPException(detail='Task does not exist',
+exception_404 = HTTPException(detail='Resource does not exist',
                                status_code=status.HTTP_404_NOT_FOUND)

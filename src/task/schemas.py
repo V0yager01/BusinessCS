@@ -48,6 +48,7 @@ class CommentResponseShema(CommentBaseShema):
 
 
 class TaskResponse(TaskBase):
+    uuid: UUID | None
     performer: UUID | None
     author: UUID | None
 
