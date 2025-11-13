@@ -45,8 +45,8 @@
 1. **Клонирование**
 
    ```
-   git clone https://github.com/<ваш-репозиторий>/finalproject.git
-   cd finalproject
+   git clone git@github.com:V0yager01/BusinessCS.git
+   cd BusinessCS
    ```
 
 2. **Виртуальное окружение**
