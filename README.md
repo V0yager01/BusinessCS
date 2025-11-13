@@ -65,31 +65,43 @@
 
 4. **Переменные окружения**
 
-   - Настройте подключение к БД в `src/database/config.py` или `.env`.
+   - Создать файл .env
+   ```
+   # Security
+    SECRET_KEY = "SECRET_KEY"
+    ALGORITHM = "HS256"
+    
+    # MODE
+    MODE=prod
+    
+    # PostgreSQL
+    DB_HOST=localhost
+    DB_PORT=5433
+    DB_PORT_LOCAL=5432
+    DB_USER=postgres 
+    DB_NAME=test_db
+    DB_PASSWORD=example
+    
+    # Adminer
+    ADMINER_PORT=8080
+    ADMINER_PORT_LOCAL=8080
+   ```
 
-5. **Миграции**
+5. **Запуск docker-контейнера(опционально)**
+   ```
+   docker compose up
+   ```
+6. **Миграции**
 
    ```
    alembic upgrade head
    ```
 
-6. **Запуск**
+7. **Запуск**
 
    ```
    uvicorn src.main:app --reload
    ```
-
-7. **Статические файлы и шаблоны**
-
-   - `src/templates` — Jinja2 шаблоны.
-   - `src/static` — JS/CSS.
-
-8. **Админ-панель SqlAdmin**
-
-   После старта доступна по `http://localhost:8000/admin`. Пользователь (admin/manager)
-   должен быть создан заранее (см. фикстуры в тестах или зарегистрируйте вручную).
-
-
 
 ## Структура проекта
 
@@ -108,11 +120,13 @@ src/
 ├── static/                # JavaScript (fetch API) и CSS
 └── tests/                 # Интеграционные тесты API (pytest)
 ```
+## Статические файлы и шаблоны
 
+   - `src/templates` — Jinja2 шаблоны.
+   - `src/static` — JS/CSS.
 
-## Документация по API
-
-Базовый URL: `http://localhost:8000`. Фронтенд шаблоны доступны по корневым путям (`/`, `/login`, `/tasks` и т.д.). Стандартная FastAPI документация:
-
+## Документация и ссылки
 - Swagger UI: `http://localhost:8000/docs`
 - Redoc: `http://localhost:8000/redoc`
+- Admin-panel `http://localhost:8000/admin`
+- Базовый URL: `http://localhost:8000`.
