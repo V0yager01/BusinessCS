@@ -109,9 +109,6 @@ src/
 └── tests/                 # Интеграционные тесты API (pytest)
 ```
 
-- Все бизнес-модули используют схему **model → repo → service → router**.
-- `src/static/api.js` — общий fetch-клиент для фронтенда.
-- `tests/integrations/api` — проверка прав доступа и основных сценариев.
 
 ## Документация по API
 
