@@ -32,3 +32,11 @@ async def get_tokens(user_credentials, session):
 async def remove_user(user_uuid, session):
     user_repo = UserRepo(session)
     await user_repo.delete_model(user_uuid)
+
+
+async def get_user_profile(user_uuid, session):
+    user_repo = UserRepo(session)
+    user = await user_repo.select_model_by_uuid(user_uuid)
+    if not user:
+        raise ValueError('User not found')
+    return user

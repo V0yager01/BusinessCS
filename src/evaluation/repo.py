@@ -12,7 +12,7 @@ class EvaluationRepo(BaseRepo):
     model = Evaluation
 
     async def insert_evaluation_and_update_task(self, task_uuid, values):
-        async with async_session as session:
+        async with self.async_session as session:
             await session.execute(
                 update(Task).filter_by(uuid=task_uuid).values(status='done')
             )
@@ -26,15 +26,19 @@ class EvaluationRepo(BaseRepo):
     async def select_all_evaluation_by_dates(self,
                                              user_uuid,
                                              start_date,
-                                             end_date):
-        async with async_session as session:
+                                             end_date,):
+        async with self.async_session as session:
             query = select(self.model).where(and_(self.model.performer == user_uuid,
-                                                  self.model.created_at.between(start_date, end_date)))
+                                                    self.model.created_at.between(start_date, end_date)))
             result = await session.execute(query)
             return result.scalars().all()
 
+
     async def select_avg_rate(self, user_uuid):
-        async with async_session as session:
-            query = select(func.avg(self.model.rate).label('avg-rate')).filter_by(performer=user_uuid).group_by(self.model.performer)
+        async with self.async_session as session:
+            query = select(func.avg(self.model.rate).label('avg_rate')).filter_by(performer=user_uuid).group_by(self.model.performer)
             result = await session.execute(query)
-            return result.mappings().first()
+            row = result.mappings().first()
+            if row:
+                return {'avg_rate': float(row['avg_rate']) if row['avg_rate'] else 0.0}
+            return {'avg_rate': 0.0}

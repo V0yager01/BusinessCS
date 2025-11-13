@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Оценки</h2>
+    
+    <div id="message"></div>
+    
+    <div id="avgRateSection" style="margin-bottom: 2rem;">
+        <h3>Средняя оценка</h3>
+        <div id="avgRate" class="loading">Загрузка...</div>
+    </div>
+    
+    <div id="evaluationsSection">
+        <h3>Оценки за период</h3>
+        <form id="dateRangeForm" style="margin-bottom: 1rem;">
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: end;">
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label for="startDate">Начало периода:</label>
+                    <input type="date" id="startDate" name="start_date" required>
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label for="endDate">Конец периода:</label>
+                    <input type="date" id="endDate" name="end_date" required>
+                </div>
+                <div>
+                    <button type="submit">Загрузить</button>
+                </div>
+            </div>
+        </form>
+        <div id="evaluationsList" class="empty">Выберите период для просмотра оценок</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Ждем загрузки DOM и API
+document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что API загружен
+    if (typeof EvaluationAPI === 'undefined') {
+        console.error('API не загружен');
+        document.getElementById('avgRate').innerHTML = '<div class="message error">Ошибка загрузки API. Обновите страницу.</div>';
+        return;
+    }
+    
+    initEvaluationsPage();
+});
+
+async function loadAvgRate() {
+    try {
+        const avgRateDiv = document.getElementById('avgRate');
+        avgRateDiv.innerHTML = '<div class="loading">Загрузка...</div>';
+        
+        const result = await EvaluationAPI.getMyAvgRate();
+        const avgRate = result.avg_rate || result[0]?.avg_rate || 'Нет данных';
+        
+        avgRateDiv.innerHTML = `
+            <div class="card">
+                <div class="card-body">
+                    <p style="font-size: 2rem; font-weight: bold; color: #667eea;">${avgRate}</p>
+                    <p>из 5.0</p>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        document.getElementById('avgRate').innerHTML = `<div class="message error">Ошибка: ${error.message}</div>`;
+    }
+}
+
+async function loadEvaluations(startDate, endDate) {
+    try {
+        const evaluationsList = document.getElementById('evaluationsList');
+        evaluationsList.innerHTML = '<div class="loading">Загрузка...</div>';
+        
+        const evaluations = await EvaluationAPI.getMyEvaluations(startDate, endDate);
+        
+        if (evaluations.length === 0) {
+            evaluationsList.innerHTML = '<div class="empty">За выбранный период оценок нет</div>';
+            return;
+        }
+        
+        evaluationsList.innerHTML = '<div class="grid"></div>';
+        const grid = evaluationsList.querySelector('.grid');
+        
+        evaluations.forEach(evaluation => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            const createdAt = new Date(evaluation.created_at);
+            
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="card-title">Оценка</div>
+                    <span class="badge" style="background: #667eea; color: white; font-size: 1.2rem;">${evaluation.rate}</span>
+                </div>
+                <div class="card-body">
+                    <p><strong>Дата:</strong> ${createdAt.toLocaleString('ru-RU')}</p>
+                    <p><strong>Задача:</strong> ${evaluation.task || 'Не указана'}</p>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    } catch (error) {
+        document.getElementById('evaluationsList').innerHTML = `<div class="message error">Ошибка: ${error.message}</div>`;
+    }
+}
+
+async function initEvaluationsPage() {
+    await loadAvgRate();
+    
+    const now = new Date();
+    const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    
+    document.getElementById('startDate').value = monthAgo.toISOString().split('T')[0];
+    document.getElementById('endDate').value = now.toISOString().split('T')[0];
+    
+    document.getElementById('dateRangeForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const startDate = form.start_date.value;
+        const endDate = form.end_date.value;
+        await loadEvaluations(startDate, endDate);
+    });
+    
+    await loadEvaluations(
+        document.getElementById('startDate').value,
+        document.getElementById('endDate').value
+    );
+}
+</script>
+{% endblock %}
+

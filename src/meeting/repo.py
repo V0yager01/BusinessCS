@@ -1,7 +1,6 @@
-from sqlalchemy import select, update, insert, func
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload, joinedload
 
-from src.database.config import async_session
 from src.database.repo import BaseRepo
 
 from .models import Meeting, UserMeeting
@@ -25,7 +24,6 @@ class UserMeetingRepo(BaseRepo):
             objects = [
                 self.model(meeting_uuid=meeting_uuid, user_uuid=user_uuid) for user_uuid in users['uuid']
             ]
-
             session.add_all(objects)
             await session.commit()
 

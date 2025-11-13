@@ -1,24 +1,36 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
-
-from src.security.exceptions import json_exception
 
 from .repo import UserMeetingRepo, MeetingRepo
 
 
-async def create_meeting(time, session):
+async def create_meeting(time, user_uuid, session):
     repo = MeetingRepo(session)
+    usermeetrepo = UserMeetingRepo(session)
     minutes = time.get('meet_duration_minutes', 0)
     hours = time.get('meet_duration_hour', 0)
     start_at = time['start_at']
-    end_at = start_at + timedelta(hours=hours,
-                                  minutes=minutes)
+
+    if not isinstance(start_at, datetime):
+        raise ValueError("start_at должен быть datetime объектом")
+
+    if start_at.tzinfo is None:
+        start_at = start_at.replace(tzinfo=timezone.utc)
+
+    end_at = start_at + timedelta(hours=hours, minutes=minutes)
+
     try:
         meet = await repo.insert_model({
             'start_at': start_at,
             'end_at': end_at
         })
+
+        await usermeetrepo.insert_model({
+            'meeting_uuid': meet.uuid,
+            'user_uuid': user_uuid
+        })
+
         return meet
     except Exception as e:
         raise e
@@ -28,12 +40,12 @@ async def append_users_to_meeting(meeting_uuid, users, session):
     usermeetrepo = UserMeetingRepo(session)
     success = []
     error = []
-    meet_model = await get_meet(meeting_uuid)
+    meet_model = await get_meet(meeting_uuid, session)
     meet_time = {'start_at': meet_model.start_at,
                  'end_at': meet_model.end_at}
     for user_uuid in users['uuid']:
         reserved_times = []
-        meets_model = await get_user_meet_list(user_uuid)
+        meets_model = await get_user_meet_list(user_uuid, session)
         for meet in meets_model:
             reserved_times.append({'start_at': meet.meeting.start_at,
                                    'end_at': meet.meeting.end_at})
@@ -63,8 +75,12 @@ async def remove_meeting(meeting_uuid, session):
 
 
 def is_user_free(user_reserved_time, meeting_time):
-    for time in user_reserved_time:
-        if time['start_at'] < meeting_time['start_at'] or time['end_at'] > meeting_time['end_at']:
+    for reserved_time in user_reserved_time:
+        start_overlaps = (
+            reserved_time['end_at'] > meeting_time['start_at'] and
+            reserved_time['start_at'] < meeting_time['end_at']
+        )
+        if start_overlaps:
             return False
     return True
 

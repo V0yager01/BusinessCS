@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+<h2>Регистрация</h2>
+
+<form id="registerForm">
+        <div class="form-group">
+            <label for="username">Имя пользователя:</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Пароль:</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+
+    <button type="submit">Зарегистрироваться</button>
+</form>
+
+<p id="registerMessage"></p>
+</div>
+
+<script src="{{ url_for('static', path='/auth.js') }}"></script>
+<script>
+initRegister();
+</script>
+{% endblock %}

@@ -61,6 +61,7 @@ class UpdateRoleUserToTeamShema(BaseModel):
     uuid: UUID
     team_role: TeamRole
 
+
 class GetUserTeamListShema(BaseModel):
     pass
 
@@ -71,3 +72,9 @@ class PromoteUserTeamShema(BaseModel):
 
 class GetTeamListShema(BaseModel):
     pass
+
+
+class UserTeamListItemShema(BaseModel):
+    team: TeamResponseShema
+    team_role: TeamRole
+    team_user_uuid: UUID

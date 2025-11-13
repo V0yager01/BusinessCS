@@ -20,3 +20,11 @@ class TeamRepo(BaseRepo):
 
 class TeamUserRepo(BaseRepo):
     model = TeamUser
+
+    async def get_team_users_by_user_uuid(self, user_uuid):
+        async with self.async_session as session:
+            query = select(self.model).filter_by(user=user_uuid).options(
+                selectinload(self.model.user_relation)
+            )
+            result = await session.execute(query)
+            return result.unique().scalars().all()

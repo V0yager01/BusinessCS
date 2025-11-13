@@ -14,9 +14,10 @@ class TeamRole(PyEnum):
 class Team(Base):
     __tablename__ = 'teams'
     uuid: Mapped[UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
-    name: Mapped[str] = mapped_column(String(256), unique=False, nullable=False)
-    description: Mapped[str] = mapped_column(String(512), unique=False, nullable=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str] = mapped_column(String(512), nullable=True)
     teamuser: Mapped[list['TeamUser']] = relationship('TeamUser')
+    tasks: Mapped[list['Task']] = relationship('Task')
 
 
 class TeamUser(Base):

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Встречи</h2>
+    
+    <div id="message"></div>
+    
+    <button onclick="showCreateMeetingForm()" style="margin-bottom: 1rem;">Создать встречу</button>
+    
+    <div id="createMeetingForm" style="display: none; margin-bottom: 2rem;">
+        <h3>Создать новую встречу</h3>
+        <form id="createMeetingFormElement">
+            <div class="form-group">
+                <label for="meetingStart">Начало:</label>
+                <input type="datetime-local" id="meetingStart" name="start_at" required>
+            </div>
+            <div class="form-group">
+                <label for="meetingDurationHour">Длительность (часы):</label>
+                <input type="number" id="meetingDurationHour" name="meet_duration_hour" value="0" min="0">
+            </div>
+            <div class="form-group">
+                <label for="meetingDurationMinutes">Длительность (минуты):</label>
+                <input type="number" id="meetingDurationMinutes" name="meet_duration_minutes" value="15" min="0" required>
+            </div>
+            <button type="submit">Создать</button>
+            <button type="button" onclick="hideCreateMeetingForm()" class="secondary">Отмена</button>
+        </form>
+    </div>
+    
+    <div id="meetingsList" class="loading">Загрузка...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Ждем загрузки DOM и API
+document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что API загружен
+    if (typeof MeetingAPI === 'undefined') {
+        console.error('API не загружен');
+        document.getElementById('meetingsList').innerHTML = '<div class="message error">Ошибка загрузки API. Обновите страницу.</div>';
+        return;
+    }
+    
+    initMeetingsPage();
+});
+
+let meetings = [];
+
+async function loadMeetings() {
+    try {
+        const meetingsList = document.getElementById('meetingsList');
+        meetingsList.innerHTML = '<div class="loading">Загрузка...</div>';
+        
+        meetings = await MeetingAPI.getMyMeetings();
+        
+        if (meetings.length === 0) {
+            meetingsList.innerHTML = '<div class="empty">У вас пока нет встреч</div>';
+            return;
+        }
+        
+        meetingsList.innerHTML = '<div class="grid"></div>';
+        const grid = meetingsList.querySelector('.grid');
+        
+        meetings.forEach(meetingData => {
+            const meeting = meetingData.meeting;
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            const startAt = new Date(meeting.start_at);
+            const endAt = new Date(meeting.end_at);
+            
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="card-title">Встреча</div>
+                </div>
+                <div class="card-body">
+                    <p><strong>Начало:</strong> ${startAt.toLocaleString('ru-RU')}</p>
+                    <p><strong>Окончание:</strong> ${endAt.toLocaleString('ru-RU')}</p>
+                </div>
+                <div class="actions">
+                    <button onclick="deleteMeeting('${meeting.uuid}')" class="danger">Удалить</button>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    } catch (error) {
+        document.getElementById('meetingsList').innerHTML = `<div class="message error">Ошибка: ${error.message}</div>`;
+    }
+}
+
+function showCreateMeetingForm() {
+    document.getElementById('createMeetingForm').style.display = 'block';
+}
+
+function hideCreateMeetingForm() {
+    document.getElementById('createMeetingForm').style.display = 'none';
+    document.getElementById('createMeetingFormElement').reset();
+}
+
+async function deleteMeeting(meetingUuid) {
+    if (!confirm('Вы уверены, что хотите удалить эту встречу?')) {
+        return;
+    }
+    
+    try {
+        await MeetingAPI.deleteMeeting(meetingUuid);
+        showMessage('Встреча успешно удалена', 'success');
+        await loadMeetings();
+    } catch (error) {
+        showMessage(`Ошибка: ${error.message}`, 'error');
+    }
+}
+
+async function initMeetingsPage() {
+    try {
+        await loadMeetings();
+        
+        document.getElementById('createMeetingFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            
+            try {
+                const startAt = new Date(form.start_at.value);
+                const data = {
+                    start_at: startAt.toISOString(),
+                    meet_duration_hour: parseInt(form.meet_duration_hour.value) || 0,
+                    meet_duration_minutes: parseInt(form.meet_duration_minutes.value) || 15
+                };
+                
+                const result = await MeetingAPI.createMeeting(data);
+                hideCreateMeetingForm();
+                showMessage('Встреча успешно создана', 'success');
+                await loadMeetings();
+            } catch (error) {
+                showMessage(`Ошибка: ${error.message}`, 'error');
+            }
+        });
+    } catch (error) {
+        showMessage(`Ошибка загрузки: ${error.message}`, 'error');
+    }
+}
+
+function showMessage(text, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.className = `message ${type}`;
+    messageDiv.textContent = text;
+    setTimeout(() => {
+        messageDiv.textContent = '';
+        messageDiv.className = '';
+    }, 5000);
+}
+</script>
+{% endblock %}
+

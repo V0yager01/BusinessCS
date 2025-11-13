@@ -2,7 +2,6 @@
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from src.database.config import async_session
 from src.database.repo import BaseRepo
 from src.user.models import User
 

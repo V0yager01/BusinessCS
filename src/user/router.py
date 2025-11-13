@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends
 from src.database.config import get_db
 from src.security.depends import user_auth
 
-from .service import create_user, get_tokens, remove_user
-from .schemas import RegisterUserShema, ProvideUserCredShema, TokenResponseShema, ProvideUserCredShema, UserResponseShema
+from .service import create_user, get_tokens, remove_user, get_user_profile
+from .schemas import RegisterUserShema, ProvideUserCredShema, TokenResponseShema, ProvideUserCredShema, UserResponseShema, UserProfileShema
 
 
 router = APIRouter(
@@ -36,5 +36,12 @@ async def delete_user(user: Annotated[str, Depends(user_auth)],
 
 
 @router.get('/check_auth')
-async def check_token(user_uuid: Annotated[str, Depends(user_auth)]):
-    return user_uuid
+async def check_token(user: Annotated[str, Depends(user_auth)]):
+    return user.uuid
+
+
+@router.get('/me')
+async def get_me(user: Annotated[str, Depends(user_auth)],
+                 session=Depends(get_db)) -> UserProfileShema:
+    user_profile = await get_user_profile(user.uuid, session)
+    return UserProfileShema.model_validate(user_profile)

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Профиль</h2>
+    
+    <div id="message"></div>
+    
+    <div id="profileInfo" class="loading">Загрузка...</div>
+    
+    <div id="deleteAccountSection" style="margin-top: 2rem; padding-top: 2rem; border-top: 2px solid #f0f0f0;">
+        <h3>Удаление аккаунта</h3>
+        <p>Внимание: удаление аккаунта необратимо. Все ваши данные будут удалены.</p>
+        <button onclick="deleteAccount()" class="danger">Удалить аккаунт</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Ждем загрузки DOM и API
+document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что API загружен
+    if (typeof UserAPI === 'undefined') {
+        console.error('API не загружен');
+        document.getElementById('profileInfo').innerHTML = '<div class="message error">Ошибка загрузки API. Обновите страницу.</div>';
+        return;
+    }
+    
+    loadProfile();
+});
+
+let user = null;
+
+async function loadProfile() {
+    try {
+        const profileInfo = document.getElementById('profileInfo');
+        profileInfo.innerHTML = '<div class="loading">Загрузка...</div>';
+        
+        user = await UserAPI.getMe();
+        
+        profileInfo.innerHTML = `
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Информация о пользователе</div>
+                </div>
+                <div class="card-body">
+                    <p><strong>Имя пользователя:</strong> ${user.username}</p>
+                    <p><strong>Email:</strong> ${user.email}</p>
+                    <p><strong>Роль:</strong> ${user.role}</p>
+                    <p><strong>UUID:</strong> ${user.uuid}</p>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        document.getElementById('profileInfo').innerHTML = `<div class="message error">Ошибка: ${error.message}</div>`;
+    }
+}
+
+async function deleteAccount() {
+    if (!confirm('Вы уверены, что хотите удалить свой аккаунт? Это действие необратимо.')) {
+        return;
+    }
+    
+    if (!confirm('Это действие удалит все ваши данные. Продолжить?')) {
+        return;
+    }
+    
+    try {
+        await UserAPI.deleteAccount();
+        localStorage.removeItem('access_token');
+        showMessage('Аккаунт успешно удален', 'success');
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 2000);
+    } catch (error) {
+        showMessage(`Ошибка: ${error.message}`, 'error');
+    }
+}
+
+function showMessage(text, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.className = `message ${type}`;
+    messageDiv.textContent = text;
+    setTimeout(() => {
+        messageDiv.textContent = '';
+        messageDiv.className = '';
+    }, 5000);
+}
+</script>
+{% endblock %}
+

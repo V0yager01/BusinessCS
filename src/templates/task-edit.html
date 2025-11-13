@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Редактировать задачу</h2>
+    <form id="edit-task-form">
+        <div class="form-group">
+            <label for="title">Название</label>
+            <input type="text" class="form-control" id="title" name="title" required>
+        </div>
+        <div class="form-group">
+            <label for="description">Описание</label>
+            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="status">Статус</label>
+            <select class="form-control" id="status" name="status">
+                <option value="todo">К выполнению</option>
+                <option value="in_progress">В процессе</option>
+                <option value="done">Выполнено</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <button type="button" class="btn btn-danger" id="delete-task-btn">Удалить</button>
+        <a href="/tasks" class="btn btn-secondary">Назад</a>
+    </form>
+</div>
+
+<script>
+const taskId = new URLSearchParams(window.location.search).get('id');
+const apiUrl = `/task?task_uuid=${taskId}`;
+
+function loadTask() {
+    fetch(apiUrl)
+        .then(r => r.json())
+        .then(task => {
+            document.getElementById('title').value = task.title;
+            document.getElementById('description').value = task.description;
+            document.getElementById('status').value = task.status;
+        });
+}
+
+document.getElementById('edit-task-form').onsubmit = function(e) {
+    e.preventDefault();
+    fetch(apiUrl, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            title: document.getElementById('title').value,
+            description: document.getElementById('description').value,
+            status: document.getElementById('status').value
+        })
+    }).then(r => {
+        if (r.ok) {
+            window.location.href = '/tasks';
+        } else {
+            alert('Ошибка при сохранении');
+        }
+    });
+};
+
+document.getElementById('delete-task-btn').onclick = function() {
+    if (confirm('Удалить задачу?')) {
+        fetch(apiUrl, {method: 'DELETE'}).then(r => {
+            if (r.ok) {
+                window.location.href = '/tasks';
+            } else {
+                alert('Ошибка при удалении');
+            }
+        });
+    }
+};
+
+if (taskId) loadTask();
+else alert('Некорректный id задачи');
+</script>
+{% endblock %}

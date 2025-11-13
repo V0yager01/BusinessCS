@@ -18,6 +18,7 @@ class Task(Base):
     __tablename__ = 'tasks'
 
     uuid: Mapped[UUID] = mapped_column(UUID, primary_key=True, server_default=text("gen_random_uuid()"))
+    team: Mapped[UUID] = mapped_column(ForeignKey('teams.uuid', ondelete='CASCADE'))
     performer: Mapped[UUID | None] = mapped_column(ForeignKey('users.uuid', ondelete='SET NULL'))
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False)

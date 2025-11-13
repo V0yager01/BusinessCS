@@ -8,7 +8,7 @@ from src.security.depends import user_auth
 from src.security.exceptions import authorize_exception, json_exception, exception_404
 from src.security.utils import check_is_author
 
-from .service import create_task, get_task_by_uuid, remove_task, update_task, create_comment, create_task
+from .service import create_task, get_task_by_uuid, remove_task, update_task, create_comment, get_tasks_by_team, get_tasks_by_user
 from .schemas import CreateTaskShemas, UpdateTaskShema, TaskResponse, SetPerformerShema, SetStatusShema, CommentBaseShema, TaskCommentsResponse, CommentResponseShema
 
 router = APIRouter(
@@ -44,7 +44,7 @@ async def post_task(task_data: CreateTaskShemas,
     task_dict = task_data.model_dump()
     task_dict['author'] = user.uuid
     res = await create_task(task_dict, session)
-    return res
+    return TaskResponse.model_validate(res)
 
 
 @router.patch('/{task_uuid}')
@@ -94,3 +94,26 @@ async def post_comment(task_uuid: UUID,
                                     session
                                     )
     return response
+
+
+@router.get('/team/{team_uuid}')
+async def get_team_tasks(team_uuid: UUID,
+                         user: Annotated[str, Depends(user_auth)],
+                         session=Depends(get_db)):
+    tasks = await get_tasks_by_team(team_uuid, session)
+    result = []
+    for task in tasks:
+        task_schema = TaskCommentsResponse.model_validate(task)
+        result.append(task_schema.model_dump())
+    return result
+
+
+@router.get('/my')
+async def get_my_tasks(user: Annotated[str, Depends(user_auth)],
+                       session=Depends(get_db)):
+    tasks = await get_tasks_by_user(user.uuid, session)
+    result = []
+    for task in tasks:
+        task_schema = TaskCommentsResponse.model_validate(task)
+        result.append(task_schema.model_dump())
+    return result

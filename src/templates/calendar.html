@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Календарь</h2>
+    
+    <div id="message"></div>
+    
+    <div id="calendarContainer" class="loading">Загрузка...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Ждем загрузки DOM и API
+document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что API загружен
+    if (typeof TaskAPI === 'undefined' || typeof MeetingAPI === 'undefined') {
+        console.error('API не загружен');
+        document.getElementById('calendarContainer').innerHTML = '<div class="message error">Ошибка загрузки API. Обновите страницу.</div>';
+        return;
+    }
+    
+    loadCalendarData();
+});
+
+let tasks = [];
+let meetings = [];
+
+async function loadCalendarData() {
+    try {
+        const container = document.getElementById('calendarContainer');
+        container.innerHTML = '<div class="loading">Загрузка...</div>';
+        
+        [tasks, meetings] = await Promise.all([
+            TaskAPI.getMyTasks().catch(() => []),
+            MeetingAPI.getMyMeetings().catch(() => [])
+        ]);
+        
+        renderCalendar();
+    } catch (error) {
+        document.getElementById('calendarContainer').innerHTML = `<div class="message error">Ошибка: ${error.message}</div>`;
+    }
+}
+
+function renderCalendar() {
+    const container = document.getElementById('calendarContainer');
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+                       'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+    
+    let html = `<h3>${monthNames[currentMonth]} ${currentYear}</h3>`;
+    html += '<div class="calendar">';
+    
+    const dayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    dayNames.forEach(day => {
+        html += `<div class="calendar-day-header" style="font-weight: bold; text-align: center; padding: 0.5rem;">${day}</div>`;
+    });
+    
+    for (let i = 0; i < startingDayOfWeek; i++) {
+        html += '<div class="calendar-day"></div>';
+    }
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(currentYear, currentMonth, day);
+        const dayEvents = getEventsForDate(date);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        html += `<div class="calendar-day" onclick="showDayTimeline('${dateStr}')" style="cursor: pointer;">`;
+        html += `<div class="calendar-day-header">${day}</div>`;
+        
+        dayEvents.forEach(event => {
+            html += `<div class="calendar-event" style="background: ${event.color};">${event.title}</div>`;
+        });
+        
+        html += `</div>`;
+    }
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function getEventsForDate(date) {
+    const events = [];
+    const dateStr = date.toISOString().split('T')[0];
+    
+    tasks.forEach(task => {
+        const taskDate = new Date(task.deadline);
+        if (taskDate.toISOString().split('T')[0] === dateStr) {
+            events.push({
+                title: `📋 ${task.title}`,
+                color: task.status === 'done' ? '#28a745' : task.status === 'in progress' ? '#17a2b8' : '#ffc107'
+            });
+        }
+    });
+    
+    meetings.forEach(meetingData => {
+        const meeting = meetingData.meeting;
+        const meetingDate = new Date(meeting.start_at);
+        if (meetingDate.toISOString().split('T')[0] === dateStr) {
+            events.push({
+                title: `👥 Встреча`,
+                color: '#667eea'
+            });
+        }
+    });
+    
+    return events;
+}
+
+function showDayTimeline(dateStr) {
+    const date = new Date(dateStr + 'T00:00:00');
+    const dayTasks = tasks.filter(task => {
+        if (!task.deadline) return false;
+        const taskDate = new Date(task.deadline);
+        return taskDate.toISOString().split('T')[0] === dateStr;
+    });
+    
+    const dayMeetings = meetings.filter(meetingData => {
+        const meeting = meetingData.meeting;
+        const meetingDate = new Date(meeting.start_at);
+        return meetingDate.toISOString().split('T')[0] === dateStr;
+    });
+    
+    // Подготавливаем события для отображения
+    const events = [];
+    
+    // Добавляем встречи
+    dayMeetings.forEach(meetingData => {
+        const meeting = meetingData.meeting;
+        const start = new Date(meeting.start_at);
+        const end = new Date(meeting.end_at);
+        
+        events.push({
+            type: 'meeting',
+            title: 'Встреча',
+            time: start,
+            startTime: start.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+            endTime: end.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+            color: '#667eea',
+            meeting: meeting
+        });
+    });
+    
+    // Добавляем задачи
+    dayTasks.forEach(task => {
+        const deadline = new Date(task.deadline);
+        
+        events.push({
+            type: 'task',
+            title: task.title,
+            time: deadline,
+            startTime: deadline.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+            color: task.status === 'done' ? '#28a745' : task.status === 'in progress' ? '#17a2b8' : '#ffc107',
+            task: task
+        });
+    });
+    
+    // Сортируем события по времени
+    events.sort((a, b) => a.time - b.time);
+    
+    // Создаем модальное окно
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'dayTimelineModal';
+    
+    const dateFormatted = date.toLocaleDateString('ru-RU', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+    });
+    
+    let html = `
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>События на ${dateFormatted}</h3>
+                <button onclick="closeDayTimelineModal()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+    `;
+    
+    if (events.length === 0) {
+        html += '<div class="empty">На этот день нет запланированных событий</div>';
+    } else {
+        html += '<div class="events-list">';
+        events.forEach(event => {
+            html += `
+                <div class="event-item" style="background: ${event.color}; padding: 1rem; margin-bottom: 0.75rem; border-radius: 5px; color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 0.25rem;">
+                                ${event.type === 'meeting' ? '👥 Встреча' : '📋 ' + event.title}
+                            </div>
+                            <div style="font-size: 0.875rem; opacity: 0.9;">
+                                ${event.startTime}${event.endTime ? ' - ' + event.endTime : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+}
+
+function closeDayTimelineModal() {
+    const modal = document.getElementById('dayTimelineModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+</script>
+{% endblock %}
+

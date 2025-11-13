@@ -4,10 +4,9 @@ import jwt
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 
-# from tools.redis import redis_client
 
 from src.loader import settings
-from .exceptions import credentials_exception, auth_exception, exception_404
+from .exceptions import credentials_exception, auth_exception
 
 
 pwd = CryptContext(schemes=['bcrypt'])
@@ -59,24 +58,3 @@ async def validate_token(token: str, user_repo):
 
 def check_is_author(task_author, user_uuid):
     return task_author == user_uuid
-
-
-
-# TODO наверно на две отдельные зависимости разделю
-# async def check_is_author(uuid, user_repo, user):
-#     task = await user_repo.select_task_by_uuid(uuid)
-#     if not task:
-#         raise exception_404
-    
-    
-
-
-
-# async def black_list_add(token, token_type, expire_time):
-#     await redis_client.set(token, token_type, ex=expire_time*60)
-
-
-# async def check_token_black_list(token):
-#     if await redis_client.get(token):
-#         return True
-#     return False

@@ -7,7 +7,7 @@ from src.database.config import get_db
 from src.security.depends import user_auth, user_is_manager
 from src.security.exceptions import exception_404
 
-from .service import create_team, add_user_to_team, remove_user_to_team, change_userteam_role, get_full_team
+from .service import create_team, add_user_to_team, remove_user_to_team, change_userteam_role, get_full_team, get_user_teams
 from .shemas import TeamBaseShema, AddUserToTeamShema, UpdateRoleUserToTeamShema, TeamResponseShema, CreateTeamResponseShema
 
 router = APIRouter(
@@ -31,7 +31,7 @@ async def get_team(team_uuid: UUID,
 async def register_team(team: TeamBaseShema,
                         user: Annotated[str, Depends(user_is_manager)],
                         session=Depends(get_db)) -> CreateTeamResponseShema:
-    team = await create_team(team.model_dump(), session)
+    team = await create_team(team.model_dump(), user.uuid, session)
     return team
 
 
@@ -57,3 +57,18 @@ async def update_role(role_update: UpdateRoleUserToTeamShema,
                       session=Depends(get_db)) -> UpdateRoleUserToTeamShema:
     await change_userteam_role(role_update.model_dump(), session)
     return role_update
+
+
+@router.get('/my')
+async def get_my_teams(user: Annotated[str, Depends(user_auth)],
+                       session=Depends(get_db)):
+    teams_data = await get_user_teams(user.uuid, session)
+    result = []
+    for item in teams_data:
+        team_schema = TeamResponseShema.model_validate(item['team'])
+        result.append({
+            'team': team_schema.model_dump(),
+            'team_role': item['team_role'].value,
+            'team_user_uuid': str(item['team_user_uuid'])
+        })
+    return result

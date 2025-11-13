@@ -1,10 +1,9 @@
-from uuid import UUID
 from typing import Annotated
 
 from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from src.database.config import async_session, get_db
+from src.database.config import get_db
 from src.user.repo import UserRepo
 
 from .utils import validate_token
@@ -31,6 +30,6 @@ async def user_is_admin(user: Annotated[str, Depends(user_auth)]):
 
 
 async def user_is_manager(user: Annotated[str, Depends(user_auth)]):
-    if not user.role.value == 'manager' or user.role.value == 'admin':
+    if not user.role.value == 'manager' and not user.role.value == 'admin':
         raise authorize_exception
     return user

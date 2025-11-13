@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Задачи</h2>
+    
+    <div id="message"></div>
+    
+    <button onclick="showCreateTaskForm()" style="margin-bottom: 1rem;">Создать задачу</button>
+    
+    <div id="createTaskForm" style="display: none; margin-bottom: 2rem;">
+        <h3>Создать новую задачу</h3>
+        <form id="createTaskFormElement">
+            <div class="form-group">
+                <label for="taskTitle">Название:</label>
+                <input type="text" id="taskTitle" name="title" required>
+            </div>
+            <div class="form-group">
+                <label for="taskDescription">Описание:</label>
+                <textarea id="taskDescription" name="description" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="taskTeam">Команда:</label>
+                <select id="taskTeam" name="team" required>
+                    <option value="">Выберите команду</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="taskPerformer">Исполнитель (опционально):</label>
+                <select id="taskPerformer" name="performer">
+                    <option value="">Не назначен</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="taskDeadline">Дедлайн:</label>
+                <input type="datetime-local" id="taskDeadline" name="deadline" required>
+            </div>
+            <button type="submit">Создать</button>
+            <button type="button" onclick="hideCreateTaskForm()" class="secondary">Отмена</button>
+        </form>
+    </div>
+    
+    <div id="tasksList" class="loading">Загрузка...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Ждем загрузки DOM и API
+document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что API загружен
+    if (typeof UserAPI === 'undefined' || typeof TaskAPI === 'undefined' || typeof TeamAPI === 'undefined' || typeof EvaluationAPI === 'undefined') {
+        console.error('API не загружен');
+        document.getElementById('tasksList').innerHTML = '<div class="message error">Ошибка загрузки API. Обновите страницу.</div>';
+        return;
+    }
+    
+    initTasksPage();
+});
+
+let tasks = [];
+let teams = [];
+let currentUser = null;
+
+async function loadTasks() {
+    try {
+        const tasksList = document.getElementById('tasksList');
+        tasksList.innerHTML = '<div class="loading">Загрузка...</div>';
+        
+        tasks = await TaskAPI.getMyTasks();
+        
+        if (tasks.length === 0) {
+            tasksList.innerHTML = '<div class="empty">У вас пока нет задач</div>';
+            return;
+        }
+        
+        tasksList.innerHTML = '<div class="grid"></div>';
+        const grid = tasksList.querySelector('.grid');
+        
+        tasks.forEach(task => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            const deadline = new Date(task.deadline);
+            const isAuthor = task.author === currentUser.uuid;
+            
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="card-title">${task.title}</div>
+                    <span class="badge ${task.status.replace(' ', '-')}">${getStatusText(task.status)}</span>
+                </div>
+                <div class="card-body">
+                    <p>${task.description}</p>
+                    <p><strong>Дедлайн:</strong> ${deadline.toLocaleString('ru-RU')}</p>
+                    ${task.performer ? `<p><strong>Исполнитель:</strong> ${task.performer}</p>` : '<p><strong>Исполнитель:</strong> Не назначен</p>'}
+                </div>
+                <div class="actions">
+                    ${task.status !== 'done' ? `<button onclick="completeTask('${task.uuid}')" class="success">Завершить</button>` : ''}
+                    ${isAuthor ? `<button onclick="editTask('${task.uuid}')" class="secondary">Редактировать</button>` : ''}
+                    ${isAuthor ? `<button onclick="deleteTask('${task.uuid}')" class="danger">Удалить</button>` : ''}
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    } catch (error) {
+        document.getElementById('tasksList').innerHTML = `<div class="message error">Ошибка: ${error.message}</div>`;
+    }
+}
+
+async function loadTeams() {
+    try {
+        teams = await TeamAPI.getMyTeams();
+        const teamSelect = document.getElementById('taskTeam');
+        teamSelect.innerHTML = '<option value="">Выберите команду</option>';
+        teams.forEach(teamData => {
+            const option = document.createElement('option');
+            option.value = teamData.team.uuid;
+            option.textContent = teamData.team.name;
+            option.dataset.team = JSON.stringify(teamData.team);
+            teamSelect.appendChild(option);
+        });
+        
+        // Обработчик изменения команды для загрузки пользователей
+        teamSelect.addEventListener('change', async (e) => {
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            if (selectedOption.value) {
+                const team = JSON.parse(selectedOption.dataset.team);
+                await loadTeamUsers(team);
+            } else {
+                const performerSelect = document.getElementById('taskPerformer');
+                performerSelect.innerHTML = '<option value="">Не назначен</option>';
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка загрузки команд:', error);
+    }
+}
+
+async function loadTeamUsers(team) {
+    const performerSelect = document.getElementById('taskPerformer');
+    performerSelect.innerHTML = '<option value="">Не назначен</option>';
+    
+    if (!team.teamuser || team.teamuser.length === 0) {
+        return;
+    }
+    
+    team.teamuser.forEach(teamUser => {
+        const user = teamUser.user_relation;
+        const option = document.createElement('option');
+        option.value = user.uuid;
+        option.textContent = `${user.username} (${user.email})`;
+        performerSelect.appendChild(option);
+    });
+}
+
+function showCreateTaskForm() {
+    document.getElementById('createTaskForm').style.display = 'block';
+    loadTeams();
+}
+
+function hideCreateTaskForm() {
+    document.getElementById('createTaskForm').style.display = 'none';
+    document.getElementById('createTaskFormElement').reset();
+}
+
+function getStatusText(status) {
+    const statusMap = {
+        'waiting': 'Ожидание',
+        'in progress': 'В работе',
+        'done': 'Выполнено'
+    };
+    return statusMap[status] || status;
+}
+
+let currentEditedTask = null;
+
+async function completeTask(taskUuid) {
+    try {
+        // Получаем информацию о задаче
+        const task = await TaskAPI.getTask(taskUuid);
+        
+        // Проверяем, есть ли исполнитель
+        if (!task.performer) {
+            showMessage('Нельзя завершить задачу без исполнителя', 'error');
+            return;
+        }
+        
+        // Создаем модальное окно для оценки
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = 'taskRateModal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Оценить выполнение задачи</h3>
+                    <button onclick="closeTaskRateModal()" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Задача:</strong> ${task.title}</p>
+                    <form id="rateTaskForm">
+                        <div class="form-group">
+                            <label for="taskRate">Оценка качества выполнения (1-5):</label>
+                            <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
+                                <input type="range" id="taskRate" name="rate" min="1" max="5" value="3" step="1" 
+                                       style="flex: 1;" oninput="updateRateDisplay(this.value)">
+                                <span id="rateDisplay" style="font-size: 1.5rem; font-weight: bold; color: #667eea; min-width: 50px; text-align: center;">3</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.875rem; color: #999;">
+                                <span>1 - Плохо</span>
+                                <span>5 - Отлично</span>
+                            </div>
+                        </div>
+                        <div class="actions">
+                            <button type="submit">Оценить и завершить</button>
+                            <button type="button" onclick="closeTaskRateModal()" class="secondary">Отмена</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Обработчик формы оценки
+        document.getElementById('rateTaskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            try {
+                const rate = parseInt(form.rate.value);
+                await EvaluationAPI.rateTask(taskUuid, rate);
+                closeTaskRateModal();
+                showMessage(`Задача оценена на ${rate} и успешно завершена`, 'success');
+                await loadTasks();
+            } catch (error) {
+                showMessage(`Ошибка: ${error.message}`, 'error');
+            }
+        });
+    } catch (error) {
+        showMessage(`Ошибка: ${error.message}`, 'error');
+    }
+}
+
+function updateRateDisplay(value) {
+    document.getElementById('rateDisplay').textContent = value;
+}
+
+function closeTaskRateModal() {
+    const modal = document.getElementById('taskRateModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function editTask(taskUuid) {
+    try {
+        currentEditedTask = taskUuid;
+        const task = await TaskAPI.getTask(taskUuid);
+        const team = await TeamAPI.getTeam(task.team);
+        
+        // Создаем модальное окно
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = 'taskEditModal';
+        
+        const deadlineDate = new Date(task.deadline);
+        const deadlineLocal = new Date(deadlineDate.getTime() - deadlineDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Редактировать задачу</h3>
+                    <button onclick="closeTaskEditModal()" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="editTaskForm">
+                        <div class="form-group">
+                            <label for="editTaskTitle">Название:</label>
+                            <input type="text" id="editTaskTitle" name="title" value="${task.title}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editTaskDescription">Описание:</label>
+                            <textarea id="editTaskDescription" name="description" required>${task.description}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="editTaskStatus">Статус:</label>
+                            <select id="editTaskStatus" name="status" required>
+                                <option value="waiting" ${task.status === 'waiting' ? 'selected' : ''}>Ожидание</option>
+                                <option value="in progress" ${task.status === 'in progress' ? 'selected' : ''}>В работе</option>
+                                <option value="done" ${task.status === 'done' ? 'selected' : ''}>Выполнено</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editTaskDeadline">Дедлайн:</label>
+                            <input type="datetime-local" id="editTaskDeadline" name="deadline" value="${deadlineLocal}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="editTaskPerformer">Исполнитель:</label>
+                            <select id="editTaskPerformer" name="performer">
+                                <option value="">Не назначен</option>
+                            </select>
+                        </div>
+                        <div class="actions">
+                            <button type="submit">Сохранить</button>
+                            <button type="button" onclick="closeTaskEditModal()" class="secondary">Отмена</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Загружаем пользователей команды в селект исполнителя
+        const performerSelect = document.getElementById('editTaskPerformer');
+        if (team.teamuser && team.teamuser.length > 0) {
+            team.teamuser.forEach(teamUser => {
+                const user = teamUser.user_relation;
+                const option = document.createElement('option');
+                option.value = user.uuid;
+                option.textContent = `${user.username} (${user.email})`;
+                if (task.performer && task.performer === user.uuid) {
+                    option.selected = true;
+                }
+                performerSelect.appendChild(option);
+            });
+        }
+        
+        // Обработчик формы редактирования
+        document.getElementById('editTaskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            try {
+                const deadline = new Date(form.deadline.value);
+                const data = {
+                    title: form.title.value,
+                    description: form.description.value,
+                    status: form.status.value,
+                    deadline: deadline.toISOString(),
+                    team: task.team
+                };
+                
+                // Добавляем performer в данные для обновления
+                const newPerformerUuid = form.performer.value;
+                if (newPerformerUuid) {
+                    data.performer = newPerformerUuid;
+                } else {
+                    data.performer = null;
+                }
+                
+                await TaskAPI.updateTask(taskUuid, data);
+                
+                closeTaskEditModal();
+                showMessage('Задача успешно обновлена', 'success');
+                await loadTasks();
+            } catch (error) {
+                showMessage(`Ошибка: ${error.message}`, 'error');
+            }
+        });
+    } catch (error) {
+        showMessage(`Ошибка: ${error.message}`, 'error');
+    }
+}
+
+async function deleteTask(taskUuid) {
+    if (!confirm('Вы уверены, что хотите удалить эту задачу?')) {
+        return;
+    }
+    
+    try {
+        await TaskAPI.deleteTask(taskUuid);
+        showMessage('Задача успешно удалена', 'success');
+        await loadTasks();
+    } catch (error) {
+        showMessage(`Ошибка: ${error.message}`, 'error');
+    }
+}
+
+function closeTaskEditModal() {
+    const modal = document.getElementById('taskEditModal');
+    if (modal) {
+        modal.remove();
+    }
+    currentEditedTask = null;
+}
+
+async function initTasksPage() {
+    try {
+        currentUser = await UserAPI.getMe();
+        await loadTasks();
+        
+        document.getElementById('createTaskFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            
+            try {
+                const deadline = new Date(form.deadline.value);
+                const data = {
+                    title: form.title.value,
+                    description: form.description.value,
+                    team: form.team.value,
+                    deadline: deadline.toISOString(),
+                    status: 'waiting'
+                };
+                
+                // Если выбран исполнитель, назначаем его после создания задачи
+                const performerUuid = form.performer.value;
+                const result = await TaskAPI.createTask(data);
+                
+                if (performerUuid) {
+                    await TaskAPI.assignPerformer(result.uuid, performerUuid);
+                }
+                
+                hideCreateTaskForm();
+                showMessage('Задача успешно создана', 'success');
+                await loadTasks();
+            } catch (error) {
+                showMessage(`Ошибка: ${error.message}`, 'error');
+            }
+        });
+    } catch (error) {
+        showMessage(`Ошибка загрузки: ${error.message}`, 'error');
+    }
+}
+
+function showMessage(text, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.className = `message ${type}`;
+    messageDiv.textContent = text;
+    setTimeout(() => {
+        messageDiv.textContent = '';
+        messageDiv.className = '';
+    }, 5000);
+}
+</script>
+{% endblock %}
+

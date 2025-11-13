@@ -4,10 +4,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+
 class TaskStatus(str, Enum):
-    waiting='waiting'
-    in_progress='in progress'
-    done='done'
+    waiting = 'waiting'
+    in_progress = 'in progress'
+    done = 'done'
 
 
 class TaskBase(BaseModel):
@@ -16,6 +17,7 @@ class TaskBase(BaseModel):
     description: str
     status: TaskStatus
     deadline: datetime
+    team: UUID
 
 
 class CreateTaskShemas(TaskBase):
@@ -27,6 +29,7 @@ class UpdateTaskShema(TaskBase):
     description: str | None
     status: TaskStatus | None
     deadline: datetime | None
+    performer: UUID | None = None
 
 
 class SetPerformerShema(BaseModel):

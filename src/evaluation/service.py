@@ -34,7 +34,8 @@ async def create_rate_and_change_task(task_uuid, rate, session):
         'reviewer': task.author,
         'task': task.uuid
     }
-    evaluation = await evaluationrepo.insert_evaluation_and_update_task(task_uuid, values=value_to_insert)
+    evaluation = await evaluationrepo.insert_evaluation_and_update_task(task_uuid,
+                                                                        values=value_to_insert)
     return evaluation
 
 

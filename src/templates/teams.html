@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Команды</h2>
+    
+    <div id="message"></div>
+    
+    <button onclick="showCreateTeamForm()" style="margin-bottom: 1rem;">Создать команду</button>
+    
+    <div id="createTeamForm" style="display: none; margin-bottom: 2rem;">
+        <h3>Создать новую команду</h3>
+        <form id="createTeamFormElement">
+            <div class="form-group">
+                <label for="teamName">Название команды:</label>
+                <input type="text" id="teamName" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="teamDescription">Описание:</label>
+                <textarea id="teamDescription" name="description"></textarea>
+            </div>
+            <button type="submit">Создать</button>
+            <button type="button" onclick="hideCreateTeamForm()" class="secondary">Отмена</button>
+        </form>
+    </div>
+    
+    <div id="teamsList" class="loading">Загрузка...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Ждем загрузки DOM и API
+document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, что API загружен
+    if (typeof UserAPI === 'undefined' || typeof TeamAPI === 'undefined') {
+        console.error('API не загружен');
+        document.getElementById('teamsList').innerHTML = '<div class="message error">Ошибка загрузки API. Обновите страницу.</div>';
+        return;
+    }
+    
+    initTeamsPage();
+});
+
+let teams = [];
+let currentUser = null;
+
+async function loadTeams() {
+    try {
+        const teamsList = document.getElementById('teamsList');
+        teamsList.innerHTML = '<div class="loading">Загрузка...</div>';
+        
+        teams = await TeamAPI.getMyTeams();
+        
+        if (teams.length === 0) {
+            teamsList.innerHTML = '<div class="empty">У вас пока нет команд</div>';
+            return;
+        }
+        
+        teamsList.innerHTML = '<div class="grid"></div>';
+        const grid = teamsList.querySelector('.grid');
+        
+        teams.forEach(teamData => {
+            const team = teamData.team;
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            const isManager = teamData.team_role === 'manager' || currentUser?.role === 'admin' || currentUser?.role === 'manager';
+            
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="card-title">${team.name}</div>
+                    <span class="badge ${teamData.team_role}">${teamData.team_role === 'manager' ? 'Менеджер' : 'Сотрудник'}</span>
+                </div>
+                <div class="card-body">
+                    <p>${team.description || 'Нет описания'}</p>
+                    <p><strong>Участников:</strong> ${team.teamuser.length}</p>
+                </div>
+                <div class="actions">
+                    ${isManager ? `<button onclick="manageTeam('${team.uuid}')" class="secondary">Управление</button>` : ''}
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    } catch (error) {
+        document.getElementById('teamsList').innerHTML = `<div class="message error">Ошибка: ${error.message}</div>`;
+    }
+}
+
+function showCreateTeamForm() {
+    document.getElementById('createTeamForm').style.display = 'block';
+}
+
+function hideCreateTeamForm() {
+    document.getElementById('createTeamForm').style.display = 'none';
+    document.getElementById('createTeamFormElement').reset();
+}
+
+async function initTeamsPage() {
+    try {
+        currentUser = await UserAPI.getMe();
+        await loadTeams();
+        
+        document.getElementById('createTeamFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            
+            try {
+                const data = {
+                    name: form.name.value,
+                    description: form.description.value || null
+                };
+                
+                await TeamAPI.createTeam(data);
+                hideCreateTeamForm();
+                showMessage('Команда успешно создана', 'success');
+                await loadTeams();
+            } catch (error) {
+                showMessage(`Ошибка: ${error.message}`, 'error');
+            }
+        });
+    } catch (error) {
+        showMessage(`Ошибка загрузки: ${error.message}`, 'error');
+    }
+}
+
+let currentManagedTeam = null;
+
+async function manageTeam(teamUuid) {
+    try {
+        currentManagedTeam = teamUuid;
+        const team = await TeamAPI.getTeam(teamUuid);
+        
+        // Создаем модальное окно
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.id = 'teamManageModal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Управление командой: ${team.name}</h3>
+                    <button onclick="closeTeamManageModal()" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 2rem;">
+                        <h4>Добавить пользователя</h4>
+                        <form id="addUserForm" style="display: flex; gap: 1rem; align-items: flex-end;">
+                            <div class="form-group" style="flex: 1;">
+                                <label for="userUuid">UUID пользователя:</label>
+                                <input type="text" id="userUuid" name="user_uuid" required placeholder="Введите UUID пользователя">
+                            </div>
+                            <div class="form-group">
+                                <label for="userRole">Роль:</label>
+                                <select id="userRole" name="team_role" required>
+                                    <option value="employee">Сотрудник</option>
+                                    <option value="manager">Менеджер</option>
+                                </select>
+                            </div>
+                            <button type="submit">Добавить</button>
+                        </form>
+                    </div>
+                    <div>
+                        <h4>Участники команды</h4>
+                        <div id="teamUsersList"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Загружаем список пользователей
+        await loadTeamUsers(team);
+        
+        // Обработчик формы добавления пользователя
+        document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            try {
+                await TeamAPI.addUserToTeam({
+                    team_uuid: teamUuid,
+                    user_uuid: form.user_uuid.value,
+                    team_role: form.team_role.value
+                });
+                showMessage('Пользователь успешно добавлен', 'success');
+                form.reset();
+                // Перезагружаем команду и список пользователей
+                const updatedTeam = await TeamAPI.getTeam(teamUuid);
+                await loadTeamUsers(updatedTeam);
+                await loadTeams(); // Обновляем список команд
+            } catch (error) {
+                showMessage(`Ошибка: ${error.message}`, 'error');
+            }
+        });
+    } catch (error) {
+        showMessage(`Ошибка: ${error.message}`, 'error');
+    }
+}
+
+async function loadTeamUsers(team) {
+    const usersList = document.getElementById('teamUsersList');
+    if (!team.teamuser || team.teamuser.length === 0) {
+        usersList.innerHTML = '<div class="empty">В команде пока нет участников</div>';
+        return;
+    }
+    
+    usersList.innerHTML = '<div class="grid"></div>';
+    const grid = usersList.querySelector('.grid');
+    
+    team.teamuser.forEach(teamUser => {
+        const user = teamUser.user_relation;
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+            <div class="card-header">
+                <div class="card-title">${user.username}</div>
+                <span class="badge ${teamUser.team_role}">${teamUser.team_role === 'manager' ? 'Менеджер' : 'Сотрудник'}</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Email:</strong> ${user.email}</p>
+                <p><strong>UUID:</strong> ${user.uuid}</p>
+            </div>
+            <div class="actions">
+                <button onclick="removeUserFromTeam('${teamUser.uuid}')" class="danger">Удалить</button>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+async function removeUserFromTeam(teamUserUuid) {
+    if (!confirm('Вы уверены, что хотите удалить этого пользователя из команды?')) {
+        return;
+    }
+    
+    try {
+        await TeamAPI.removeUserFromTeam(teamUserUuid);
+        showMessage('Пользователь успешно удален из команды', 'success');
+        // Перезагружаем команду и список пользователей
+        if (currentManagedTeam) {
+            const team = await TeamAPI.getTeam(currentManagedTeam);
+            await loadTeamUsers(team);
+            await loadTeams(); // Обновляем список команд
+        }
+    } catch (error) {
+        showMessage(`Ошибка: ${error.message}`, 'error');
+    }
+}
+
+function closeTeamManageModal() {
+    const modal = document.getElementById('teamManageModal');
+    if (modal) {
+        modal.remove();
+    }
+    currentManagedTeam = null;
+}
+
+function showMessage(text, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.className = `message ${type}`;
+    messageDiv.textContent = text;
+    setTimeout(() => {
+        messageDiv.textContent = '';
+        messageDiv.className = '';
+    }, 5000);
+}
+</script>
+{% endblock %}
+

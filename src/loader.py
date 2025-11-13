@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     SECRET_KEY: str
     ALGORITHM: str
-    model_config = ConfigDict(extra='ignore', env_file='.test.env')
+    model_config = ConfigDict(extra='ignore', env_file='.env')
 
     @property
     def pg_url(self):
@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     @property
     def pg_url_sync(self):
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
 
 
 settings = Settings()
