@@ -8,23 +8,11 @@ class BaseRepo():
     def __init__(self, session):
         self.async_session = session
 
-    async def select_first_record(self):
-        async with self.async_session as session:
-            query = select(self.model).limit(1)
-            result = await session.execute(query)
-            return result.scalar_one_or_none()
-
     async def select_model_by_uuid(self, uuid):
         async with self.async_session as session:
             query = select(self.model).filter_by(uuid=uuid)
             result = await session.execute(query)
             return result.scalar_one_or_none()
-
-    async def get_model_by_conditions(self, conditions):
-        async with self.async_session as session:
-            query = select(self.model).filter_by(**conditions)
-            result = await session.execute(query)
-            return result.scalars().all()
 
     async def insert_model(self, data):
         async with self.async_session as session:

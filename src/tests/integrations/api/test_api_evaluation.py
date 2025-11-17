@@ -54,7 +54,6 @@ def _get_team_membership_uuid(test_client, manager_token: str, team_uuid: str, t
     for team_user in team_body.get("teamuser", []):
         if team_user["user_relation"]["uuid"] == target_uuid:
             return team_user["uuid"]
-    return None
 
 
 def test_rate_task_flow(test_client, manager_user, regular_user):

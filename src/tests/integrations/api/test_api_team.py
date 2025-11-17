@@ -133,7 +133,7 @@ def test_invite_user_permissions(
 @pytest.mark.parametrize(
     "user_fixture, expected_status",
     [
-        ("manager_user", 200),
+        ("manager_user", 204),
         ("regular_user", 403),
     ],
 )

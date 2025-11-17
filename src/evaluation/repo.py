@@ -1,4 +1,5 @@
-from sqlalchemy import update, insert, select, and_, func
+from sqlalchemy import update, select, and_, func
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from src.database.config import async_session
 from src.database.repo import BaseRepo
@@ -13,15 +14,20 @@ class EvaluationRepo(BaseRepo):
 
     async def insert_evaluation_and_update_task(self, task_uuid, values):
         async with self.async_session as session:
-            await session.execute(
-                update(Task).filter_by(uuid=task_uuid).values(status='done')
-            )
+            try:
+                await session.execute(
+                    update(Task).filter_by(uuid=task_uuid).values(status='done')
+                )
 
-            evaluation = self.model(**values)
-            session.add(evaluation)
-            await session.commit()
-            await session.refresh(evaluation)
-            return evaluation
+                evaluation = self.model(**values)
+                session.add(evaluation)
+                await session.commit()
+                await session.refresh(evaluation)
+                return evaluation
+            except IntegrityError as e:
+                raise e
+            except SQLAlchemyError as e:
+                raise RuntimeError(f'database error: {e}')
 
     async def select_all_evaluation_by_dates(self,
                                              user_uuid,

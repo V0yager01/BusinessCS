@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, Query
 
 from src.database.config import get_db
 from src.security.depends import user_auth
-from src.security.exceptions import exception_404, authorize_exception
-from src.security.utils import check_is_author
+from src.task.router import user_is_author
+
 from .schemas import EvaluationResponseShema, EvaluationAvgResponseShema
 from .service import (
     get_task_by_uuid,
@@ -22,24 +22,14 @@ router = APIRouter(
 )
 
 
-async def user_is_author(task_uuid: UUID,
-                         user: Annotated[str, Depends(user_auth)],
-                         session=Depends(get_db)):
-    task = await get_task_by_uuid(task_uuid, session)
-    if not task:
-        raise exception_404
-    if not check_is_author(task.author, user.uuid):
-        raise authorize_exception
-    return task
-
-
 @router.post('')
 async def rate_and_close_task(task_uuid: UUID,
                               rate: Annotated[int, Query(gt=0, le=5)],
                               user: Annotated[str, Depends(user_is_author)],
                               session=Depends(get_db)):
     await create_rate_and_change_task(task_uuid, rate, session)
-    return {'detail': 'The task was rated'}
+    return {'detail': 'The task was rated',
+            'status': 200}
 
 
 @router.get('/me')

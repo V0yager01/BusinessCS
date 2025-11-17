@@ -54,7 +54,7 @@ async def get_user_meetings(user: Annotated[str, Depends(user_auth)],
     return meetings
 
 
-@router.delete('')
+@router.delete('', status_code=204)
 async def delete_meeting(meeting_uuid: UUID,
                          user: Annotated[str, Depends(user_auth)],
                          session=Depends(get_db)):

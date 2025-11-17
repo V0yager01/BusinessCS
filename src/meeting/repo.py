@@ -1,4 +1,5 @@
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.database.repo import BaseRepo
@@ -21,11 +22,16 @@ class UserMeetingRepo(BaseRepo):
 
     async def insert_many_users(self, meeting_uuid, users):
         async with self.async_session as session:
-            objects = [
-                self.model(meeting_uuid=meeting_uuid, user_uuid=user_uuid) for user_uuid in users['uuid']
-            ]
-            session.add_all(objects)
-            await session.commit()
+            try:
+                objects = [
+                    self.model(meeting_uuid=meeting_uuid, user_uuid=user_uuid) for user_uuid in users['uuid']
+                ]
+                session.add_all(objects)
+                await session.commit()
+            except IntegrityError as e:
+                raise e
+            except SQLAlchemyError as e:
+                raise RuntimeError(f'database error: {e}')
 
     async def select_time_by_useruuid(self, user_uuid):
         async with self.async_session as session:

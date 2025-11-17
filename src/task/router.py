@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 
 from src.database.config import get_db
 from src.security.depends import user_auth
-from src.security.exceptions import authorize_exception, json_exception, exception_404
+from src.security.exceptions import authorize_exception, exception_404
 from src.security.utils import check_is_author
 
 from .service import create_task, get_task_by_uuid, remove_task, update_task, create_comment, get_tasks_by_team, get_tasks_by_user
@@ -112,8 +112,5 @@ async def get_team_tasks(team_uuid: UUID,
 async def get_my_tasks(user: Annotated[str, Depends(user_auth)],
                        session=Depends(get_db)):
     tasks = await get_tasks_by_user(user.uuid, session)
-    result = []
-    for task in tasks:
-        task_schema = TaskCommentsResponse.model_validate(task)
-        result.append(task_schema.model_dump())
+    result = [TaskCommentsResponse.model_validate(task).model_dump() for task in tasks]
     return result

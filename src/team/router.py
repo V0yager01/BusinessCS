@@ -43,12 +43,11 @@ async def invite_user(usertoteam: AddUserToTeamShema,
     return usertoteam
 
 
-@router.delete('/user')
+@router.delete('/user', status_code=204)
 async def remove_user(userteamuuid: UUID,
                       user: Annotated[str, Depends(user_is_manager)],
                       session=Depends(get_db)) -> None:
     await remove_user_to_team(userteamuuid, session)
-    return None
 
 
 @router.patch('/user')
@@ -63,12 +62,9 @@ async def update_role(role_update: UpdateRoleUserToTeamShema,
 async def get_my_teams(user: Annotated[str, Depends(user_auth)],
                        session=Depends(get_db)):
     teams_data = await get_user_teams(user.uuid, session)
-    result = []
-    for item in teams_data:
-        team_schema = TeamResponseShema.model_validate(item['team'])
-        result.append({
-            'team': team_schema.model_dump(),
-            'team_role': item['team_role'].value,
-            'team_user_uuid': str(item['team_user_uuid'])
-        })
+    result = [{
+        'team': TeamResponseShema.model_validate(item['team']).model_dump(),
+        'team_role': item['team_role'].value,
+        'team_user_uuid': str(item['team_user_uuid'])
+    } for item in teams_data]
     return result
