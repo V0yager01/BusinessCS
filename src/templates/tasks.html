@@ -27,8 +27,8 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="taskPerformer">Исполнитель (опционально):</label>
-                    <select id="taskPerformer" name="performer">
+                    <label for="taskPerformer">Исполнитель:</label>
+                    <select id="taskPerformer" name="performer" required>
                         <option value="">Не назначен</option>
                     </select>
                 </div>
@@ -316,7 +316,7 @@ async function editTask(taskUuid) {
                         </div>
                         <div class="form-group">
                             <label for="editTaskPerformer">Исполнитель:</label>
-                            <select id="editTaskPerformer" name="performer">
+                            <select id="editTaskPerformer" name="performer" required>
                                 <option value="">Не назначен</option>
                             </select>
                         </div>
