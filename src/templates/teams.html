@@ -6,22 +6,24 @@
     
     <div id="message"></div>
     
-    <button onclick="showCreateTeamForm()" style="margin-bottom: 1rem;">Создать команду</button>
-    
-    <div id="createTeamForm" style="display: none; margin-bottom: 2rem;">
-        <h3>Создать новую команду</h3>
-        <form id="createTeamFormElement">
-            <div class="form-group">
-                <label for="teamName">Название команды:</label>
-                <input type="text" id="teamName" name="name" required>
-            </div>
-            <div class="form-group">
-                <label for="teamDescription">Описание:</label>
-                <textarea id="teamDescription" name="description"></textarea>
-            </div>
-            <button type="submit">Создать</button>
-            <button type="button" onclick="hideCreateTeamForm()" class="secondary">Отмена</button>
-        </form>
+    <div id="teamActions" style="display: none;">
+        <button id="createTeamButton" onclick="showCreateTeamForm()" style="margin-bottom: 1rem;">Создать команду</button>
+        
+        <div id="createTeamForm" style="display: none; margin-bottom: 2rem;">
+            <h3>Создать новую команду</h3>
+            <form id="createTeamFormElement">
+                <div class="form-group">
+                    <label for="teamName">Название команды:</label>
+                    <input type="text" id="teamName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="teamDescription">Описание:</label>
+                    <textarea id="teamDescription" name="description"></textarea>
+                </div>
+                <button type="submit">Создать</button>
+                <button type="button" onclick="hideCreateTeamForm()" class="secondary">Отмена</button>
+            </form>
+        </div>
     </div>
     
     <div id="teamsList" class="loading">Загрузка...</div>
@@ -44,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 let teams = [];
 let currentUser = null;
+let canCreateTeams = false;
 
 async function loadTeams() {
     try {
@@ -87,7 +90,22 @@ async function loadTeams() {
     }
 }
 
+function updateTeamCreationVisibility() {
+    const actionsBlock = document.getElementById('teamActions');
+    const notice = document.getElementById('teamAccessNotice');
+    if (actionsBlock) {
+        actionsBlock.style.display = canCreateTeams ? 'block' : 'none';
+    }
+    if (notice) {
+        notice.style.display = canCreateTeams ? 'none' : 'block';
+    }
+}
+
 function showCreateTeamForm() {
+    if (!canCreateTeams) {
+        showMessage('Создавать команды может только администратор', 'error');
+        return;
+    }
     document.getElementById('createTeamForm').style.display = 'block';
 }
 
@@ -99,27 +117,32 @@ function hideCreateTeamForm() {
 async function initTeamsPage() {
     try {
         currentUser = await UserAPI.getMe();
+        canCreateTeams = currentUser?.role === 'admin';
+        updateTeamCreationVisibility();
         await loadTeams();
         
-        document.getElementById('createTeamFormElement').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            
-            try {
-                const data = {
-                    name: form.name.value,
-                    description: form.description.value || null
-                };
+        if (canCreateTeams) {
+            document.getElementById('createTeamFormElement').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const form = e.target;
                 
-                await TeamAPI.createTeam(data);
-                hideCreateTeamForm();
-                showMessage('Команда успешно создана', 'success');
-                await loadTeams();
-            } catch (error) {
-                showMessage(`Ошибка: ${error.message}`, 'error');
-            }
-        });
+                try {
+                    const data = {
+                        name: form.name.value,
+                        description: form.description.value || null
+                    };
+                    
+                    await TeamAPI.createTeam(data);
+                    hideCreateTeamForm();
+                    showMessage('Команда успешно создана', 'success');
+                    await loadTeams();
+                } catch (error) {
+                    showMessage(`Ошибка: ${error.message}`, 'error');
+                }
+            });
+        }
     } catch (error) {
+        updateTeamCreationVisibility();
         showMessage(`Ошибка загрузки: ${error.message}`, 'error');
     }
 }

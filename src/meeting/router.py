@@ -10,12 +10,17 @@ from .service import (
     create_meeting,
     append_users_to_meeting,
     get_user_meet_list,
-    remove_meeting
+    remove_meeting,
+    update_meeting,
+    remove_participant_from_meeting
 )
 from .schemas import (
     CreateMeetingBaseShema,
     MeetingResponseShema,
     UsersToInviteShema,
+    UpdateMeetingShema,
+    MeetingParticipantShema,
+    UserMeetingResponseShema,
 )
 
 router = APIRouter(
@@ -49,9 +54,12 @@ async def invite_user(meeting_uuid: UUID,
 
 @router.get('/mymeetings')
 async def get_user_meetings(user: Annotated[str, Depends(user_auth)],
-                            session=Depends(get_db)):
+                            session=Depends(get_db)) -> list[UserMeetingResponseShema]:
     meetings = await get_user_meet_list(user.uuid, session)
-    return meetings
+    return [
+        UserMeetingResponseShema.model_validate(record)
+        for record in meetings
+    ]
 
 
 @router.delete('', status_code=204)
@@ -59,3 +67,31 @@ async def delete_meeting(meeting_uuid: UUID,
                          user: Annotated[str, Depends(user_auth)],
                          session=Depends(get_db)):
     await remove_meeting(meeting_uuid, session)
+
+
+@router.patch('/{meeting_uuid}')
+async def patch_meeting(meeting_uuid: UUID,
+                        meet_schema: UpdateMeetingShema,
+                        user: Annotated[str, Depends(user_auth)],
+                        session=Depends(get_db)) -> MeetingResponseShema:
+    response = await update_meeting(
+        meeting_uuid,
+        meet_schema.model_dump(),
+        user.uuid,
+        session
+    )
+    return MeetingResponseShema.model_validate(response)
+
+
+@router.delete('/{meeting_uuid}/participant')
+async def delete_meeting_participant(meeting_uuid: UUID,
+                                     participant: MeetingParticipantShema,
+                                     user: Annotated[str, Depends(user_auth)],
+                                     session=Depends(get_db)):
+    await remove_participant_from_meeting(
+        meeting_uuid,
+        participant.user_uuid,
+        user.uuid,
+        session
+    )
+    return {'detail': 'participant removed'}

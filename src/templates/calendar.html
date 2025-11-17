@@ -15,7 +15,7 @@
 // Ждем загрузки DOM и API
 document.addEventListener('DOMContentLoaded', function() {
     // Проверяем, что API загружен
-    if (typeof TaskAPI === 'undefined' || typeof MeetingAPI === 'undefined') {
+    if (typeof TaskAPI === 'undefined' || typeof MeetingAPI === 'undefined' || typeof TeamAPI === 'undefined') {
         console.error('API не загружен');
         document.getElementById('calendarContainer').innerHTML = '<div class="message error">Ошибка загрузки API. Обновите страницу.</div>';
         return;
@@ -26,16 +26,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
 let tasks = [];
 let meetings = [];
+let userDirectory = {};
 
 async function loadCalendarData() {
     try {
         const container = document.getElementById('calendarContainer');
         container.innerHTML = '<div class="loading">Загрузка...</div>';
         
-        [tasks, meetings] = await Promise.all([
+        const [tasksResponse, meetingsResponse, teamsResponse] = await Promise.all([
             TaskAPI.getMyTasks().catch(() => []),
-            MeetingAPI.getMyMeetings().catch(() => [])
+            MeetingAPI.getMyMeetings().catch(() => []),
+            TeamAPI.getMyTeams().catch(() => [])
         ]);
+        tasks = tasksResponse;
+        meetings = meetingsResponse;
+        userDirectory = buildUserDirectory(teamsResponse);
         
         renderCalendar();
     } catch (error) {
@@ -138,6 +143,7 @@ function showDayTimeline(dateStr) {
         const meeting = meetingData.meeting;
         const start = new Date(meeting.start_at);
         const end = new Date(meeting.end_at);
+        const participants = getMeetingParticipants(meetingData);
         
         events.push({
             type: 'meeting',
@@ -146,7 +152,8 @@ function showDayTimeline(dateStr) {
             startTime: start.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
             endTime: end.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
             color: '#667eea',
-            meeting: meeting
+            meeting: meeting,
+            participants
         });
     });
     
@@ -203,6 +210,11 @@ function showDayTimeline(dateStr) {
                             <div style="font-size: 0.875rem; opacity: 0.9;">
                                 ${event.startTime}${event.endTime ? ' - ' + event.endTime : ''}
                             </div>
+                            ${event.type === 'meeting' ? `
+                                <div style="margin-top: 0.35rem; font-size: 0.85rem; opacity: 0.95;">
+                                    <strong>Участники:</strong> ${event.participants && event.participants.length ? event.participants.join(', ') : 'Нет данных'}
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -225,6 +237,101 @@ function closeDayTimelineModal() {
     if (modal) {
         modal.remove();
     }
+}
+
+function buildUserDirectory(teamList) {
+    const directory = {};
+    teamList.forEach(teamEntry => {
+        const members = teamEntry?.team?.teamuser || [];
+        members.forEach(member => {
+            const user = member.user_relation;
+            if (user && user.uuid) {
+                directory[user.uuid] = {
+                    username: user.username,
+                    email: user.email
+                };
+            }
+        });
+    });
+    if (window.currentUserProfile?.uuid) {
+        directory[window.currentUserProfile.uuid] = {
+            username: window.currentUserProfile.username,
+            email: window.currentUserProfile.email
+        };
+    }
+    return directory;
+}
+
+function getMeetingParticipants(meetingData) {
+    const rawParticipants = extractParticipants(meetingData);
+    if (rawParticipants.length === 0) {
+        const fallbackUuid = meetingData.user_uuid || window.currentUserProfile?.uuid;
+        if (fallbackUuid) {
+            return [formatParticipantLabel({ uuid: fallbackUuid })];
+        }
+        return [];
+    }
+    return rawParticipants.map(participant => formatParticipantLabel(participant));
+}
+
+function extractParticipants(meetingData) {
+    if (!meetingData) {
+        return [];
+    }
+    const meetingParticipants = meetingData.meeting?.participants;
+    if (Array.isArray(meetingParticipants) && meetingParticipants.length > 0) {
+        return meetingParticipants;
+    }
+    if (Array.isArray(meetingData.participants) && meetingData.participants.length > 0) {
+        return meetingData.participants;
+    }
+    return [];
+}
+
+function formatParticipantLabel(participant) {
+    if (!participant) {
+        return 'Неизвестно';
+    }
+    const directUser = participant.user_relation || participant.user;
+    if (directUser) {
+        return formatUserDisplay(directUser);
+    }
+    const uuid = participant.user_uuid || participant.uuid || participant;
+    if (userDirectory[uuid]) {
+        return formatUserDisplay({
+            username: userDirectory[uuid].username,
+            email: userDirectory[uuid].email,
+            uuid
+        });
+    }
+    if (participant.username || participant.email) {
+        return formatUserDisplay(participant);
+    }
+    return shortenUuid(uuid);
+}
+
+function formatUserDisplay(user) {
+    if (!user) {
+        return 'Неизвестно';
+    }
+    if (user.username && user.email) {
+        return `${user.username} (${user.email})`;
+    }
+    if (user.username) {
+        return user.username;
+    }
+    if (user.email) {
+        return user.email;
+    }
+    return shortenUuid(user.uuid);
+}
+
+function shortenUuid(uuid) {
+    if (!uuid) {
+        return 'Неизвестно';
+    }
+    const value = typeof uuid === 'string' ? uuid : String(uuid);
+    return value.length > 8 ? `${value.slice(0, 8)}...` : value;
 }
 </script>
 {% endblock %}

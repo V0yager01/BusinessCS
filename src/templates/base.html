@@ -34,51 +34,99 @@
 
     <script src="{{ url_for('static', path='/api.js') }}"></script>
     <script>
-    (function() {
-    const token = localStorage.getItem('access_token');
-    const loginLink = document.getElementById('loginLink');
-    const registerLink = document.getElementById('registerLink');
-    const teamsLink = document.getElementById('teamsLink');
+    const ROLE_PRIORITY = { user: 0, manager: 1, admin: 2 };
+
+    function hasRequiredRole(currentRole, requiredRole) {
+        if (!requiredRole) {
+            return true;
+        }
+        const currentPriority = ROLE_PRIORITY[currentRole] ?? -1;
+        const requiredPriority = ROLE_PRIORITY[requiredRole] ?? Number.MAX_SAFE_INTEGER;
+        return currentPriority >= requiredPriority;
+    }
+
+    function toggleAuthLinks({ loginLink, registerLink, profileLink, logoutLink }, isAuthenticated) {
+        if (loginLink) loginLink.style.display = isAuthenticated ? 'none' : 'inline';
+        if (registerLink) registerLink.style.display = isAuthenticated ? 'none' : 'inline';
+        if (profileLink) profileLink.style.display = isAuthenticated ? 'inline' : 'none';
+        if (logoutLink) logoutLink.style.display = isAuthenticated ? 'inline' : 'none';
+        if (isAuthenticated && profileLink) {
+            profileLink.href = '/profile';
+        }
+    }
+
+    function toggleProtectedLink(linkElement, currentRole) {
+        if (!linkElement) {
+            return;
+        }
+        const requiredRole = linkElement.dataset.role;
+        linkElement.style.display = hasRequiredRole(currentRole, requiredRole) ? 'inline' : 'none';
+    }
+
+    function clearProfileReference() {
+        delete window.currentUserProfile;
+        delete window.currentUserRole;
+    }
+
+    async function resolveCurrentProfile() {
+        if (typeof UserAPI === 'undefined') {
+            return null;
+        }
+        try {
+            const profile = await UserAPI.getMe();
+            window.currentUserProfile = profile;
+            window.currentUserRole = profile?.role ?? null;
+            return profile;
+        } catch (error) {
+            console.warn('Не удалось получить профиль пользователя', error);
+            return null;
+        }
+    }
+
+    async function initNavigationMenu() {
+        const token = localStorage.getItem('access_token');
+        const loginLink = document.getElementById('loginLink');
+        const registerLink = document.getElementById('registerLink');
+        const teamsLink = document.getElementById('teamsLink');
         const tasksLink = document.getElementById('tasksLink');
         const meetingsLink = document.getElementById('meetingsLink');
         const calendarLink = document.getElementById('calendarLink');
         const evaluationsLink = document.getElementById('evaluationsLink');
-    const profileLink = document.getElementById('profileLink');
-    const logoutLink = document.getElementById('logoutLink');
+        const profileLink = document.getElementById('profileLink');
+        const logoutLink = document.getElementById('logoutLink');
 
-    if (token) {
-            if (loginLink) loginLink.style.display = 'none';
-            if (registerLink) registerLink.style.display = 'none';
-            if (teamsLink) teamsLink.style.display = 'inline';
-            if (tasksLink) tasksLink.style.display = 'inline';
-            if (meetingsLink) meetingsLink.style.display = 'inline';
-            if (calendarLink) calendarLink.style.display = 'inline';
-            if (evaluationsLink) evaluationsLink.style.display = 'inline';
-            if (profileLink) {
-        profileLink.style.display = 'inline';
-                profileLink.href = '/profile';
-            }
-            if (logoutLink) logoutLink.style.display = 'inline';
-    } else {
-            if (loginLink) loginLink.style.display = 'inline';
-            if (registerLink) registerLink.style.display = 'inline';
-            if (teamsLink) teamsLink.style.display = 'none';
-            if (tasksLink) tasksLink.style.display = 'none';
-            if (meetingsLink) meetingsLink.style.display = 'none';
-            if (calendarLink) calendarLink.style.display = 'none';
-            if (evaluationsLink) evaluationsLink.style.display = 'none';
-            if (profileLink) profileLink.style.display = 'none';
-            if (logoutLink) logoutLink.style.display = 'none';
+        const dynamicLinks = [teamsLink, tasksLink, meetingsLink, calendarLink, evaluationsLink];
+
+        if (!token) {
+            toggleAuthLinks({ loginLink, registerLink, profileLink, logoutLink }, false);
+            dynamicLinks.forEach(link => {
+                if (link) link.style.display = 'none';
+            });
+            clearProfileReference();
+            return;
+        }
+
+        toggleAuthLinks({ loginLink, registerLink, profileLink, logoutLink }, true);
+
+        const profile = await resolveCurrentProfile();
+        const currentRole = profile?.role ?? null;
+
+        dynamicLinks.forEach(link => toggleProtectedLink(link, currentRole));
+
+        if (logoutLink && !logoutLink.dataset.bound) {
+            logoutLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                localStorage.removeItem('access_token');
+                clearProfileReference();
+                window.location.href = '/';
+            });
+            logoutLink.dataset.bound = 'true';
+        }
     }
 
-        if (logoutLink) {
-            logoutLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        localStorage.removeItem('access_token');
-        window.location.href = '/';
+    document.addEventListener('DOMContentLoaded', () => {
+        initNavigationMenu();
     });
-        }
-    })();
     </script>
     {% block scripts %}
     {% endblock %}

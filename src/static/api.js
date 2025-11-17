@@ -29,8 +29,16 @@ async function apiRequest(url, options = {}) {
             const error = await response.json().catch(() => ({ detail: 'Ошибка сервера' }));
             throw new Error(error.detail || `Ошибка: ${response.status}`);
         }
-        
-        return await response.json();
+
+        if (response.status === 204) {
+            return null;
+        }
+
+        const text = await response.text();
+        if (!text) {
+            return null;
+        }
+        return JSON.parse(text);
     } catch (error) {
         console.error('API Error:', error);
         throw error;
@@ -183,6 +191,20 @@ const MeetingAPI = {
         return apiRequest(`${API_BASE}/meeting/${meetingUuid}/invite`, {
             method: 'POST',
             body: JSON.stringify({ uuid: userIds })
+        });
+    },
+
+    async updateMeeting(meetingUuid, data) {
+        return apiRequest(`${API_BASE}/meeting/${meetingUuid}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async removeParticipant(meetingUuid, userUuid) {
+        return apiRequest(`${API_BASE}/meeting/${meetingUuid}/participant`, {
+            method: 'DELETE',
+            body: JSON.stringify({ user_uuid: userUuid })
         });
     },
     

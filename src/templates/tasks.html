@@ -6,38 +6,44 @@
     
     <div id="message"></div>
     
-    <button onclick="showCreateTaskForm()" style="margin-bottom: 1rem;">Создать задачу</button>
-    
-    <div id="createTaskForm" style="display: none; margin-bottom: 2rem;">
-        <h3>Создать новую задачу</h3>
-        <form id="createTaskFormElement">
-            <div class="form-group">
-                <label for="taskTitle">Название:</label>
-                <input type="text" id="taskTitle" name="title" required>
-            </div>
-            <div class="form-group">
-                <label for="taskDescription">Описание:</label>
-                <textarea id="taskDescription" name="description" required></textarea>
-            </div>
-            <div class="form-group">
-                <label for="taskTeam">Команда:</label>
-                <select id="taskTeam" name="team" required>
-                    <option value="">Выберите команду</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="taskPerformer">Исполнитель (опционально):</label>
-                <select id="taskPerformer" name="performer">
-                    <option value="">Не назначен</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="taskDeadline">Дедлайн:</label>
-                <input type="datetime-local" id="taskDeadline" name="deadline" required>
-            </div>
-            <button type="submit">Создать</button>
-            <button type="button" onclick="hideCreateTaskForm()" class="secondary">Отмена</button>
-        </form>
+    <div id="taskActions" style="display: none;">
+        <button id="createTaskButton" onclick="showCreateTaskForm()" style="margin-bottom: 1rem;">Создать задачу</button>
+        
+        <div id="createTaskForm" style="display: none; margin-bottom: 2rem;">
+            <h3>Создать новую задачу</h3>
+            <form id="createTaskFormElement">
+                <div class="form-group">
+                    <label for="taskTitle">Название:</label>
+                    <input type="text" id="taskTitle" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="taskDescription">Описание:</label>
+                    <textarea id="taskDescription" name="description" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="taskTeam">Команда:</label>
+                    <select id="taskTeam" name="team" required>
+                        <option value="">Выберите команду</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="taskPerformer">Исполнитель (опционально):</label>
+                    <select id="taskPerformer" name="performer">
+                        <option value="">Не назначен</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="taskDeadline">Дедлайн:</label>
+                    <input type="datetime-local" id="taskDeadline" name="deadline" required>
+                </div>
+                <button type="submit">Создать</button>
+                <button type="button" onclick="hideCreateTaskForm()" class="secondary">Отмена</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="taskAccessNotice" class="message info" style="display: none; margin-bottom: 1.5rem;">
+        Создавать задачи могут только менеджеры и администраторы.
     </div>
     
     <div id="tasksList" class="loading">Загрузка...</div>
@@ -61,6 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
 let tasks = [];
 let teams = [];
 let currentUser = null;
+let canCreateTasks = false;
 
 async function loadTasks() {
     try {
@@ -153,7 +160,22 @@ async function loadTeamUsers(team) {
     });
 }
 
+function updateTaskCreationVisibility() {
+    const actionsBlock = document.getElementById('taskActions');
+    const notice = document.getElementById('taskAccessNotice');
+    if (actionsBlock) {
+        actionsBlock.style.display = canCreateTasks ? 'block' : 'none';
+    }
+    if (notice) {
+        notice.style.display = canCreateTasks ? 'none' : 'block';
+    }
+}
+
 function showCreateTaskForm() {
+    if (!canCreateTasks) {
+        showMessage('Создавать задачи могут только менеджеры и администраторы', 'error');
+        return;
+    }
     document.getElementById('createTaskForm').style.display = 'block';
     loadTeams();
 }
@@ -384,38 +406,42 @@ function closeTaskEditModal() {
 async function initTasksPage() {
     try {
         currentUser = await UserAPI.getMe();
+        canCreateTasks = currentUser?.role !== 'user';
+        updateTaskCreationVisibility();
         await loadTasks();
         
-        document.getElementById('createTaskFormElement').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const form = e.target;
-            
-            try {
-                const deadline = new Date(form.deadline.value);
-                const data = {
-                    title: form.title.value,
-                    description: form.description.value,
-                    team: form.team.value,
-                    deadline: deadline.toISOString(),
-                    status: 'waiting'
-                };
+        if (canCreateTasks) {
+            document.getElementById('createTaskFormElement').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const form = e.target;
                 
-                // Если выбран исполнитель, назначаем его после создания задачи
-                const performerUuid = form.performer.value;
-                const result = await TaskAPI.createTask(data);
-                
-                if (performerUuid) {
-                    await TaskAPI.assignPerformer(result.uuid, performerUuid);
+                try {
+                    const deadline = new Date(form.deadline.value);
+                    const data = {
+                        title: form.title.value,
+                        description: form.description.value,
+                        team: form.team.value,
+                        deadline: deadline.toISOString(),
+                        status: 'waiting'
+                    };
+                    
+                    const performerUuid = form.performer.value;
+                    const result = await TaskAPI.createTask(data);
+                    
+                    if (performerUuid) {
+                        await TaskAPI.assignPerformer(result.uuid, performerUuid);
+                    }
+                    
+                    hideCreateTaskForm();
+                    showMessage('Задача успешно создана', 'success');
+                    await loadTasks();
+                } catch (error) {
+                    showMessage(`Ошибка: ${error.message}`, 'error');
                 }
-                
-                hideCreateTaskForm();
-                showMessage('Задача успешно создана', 'success');
-                await loadTasks();
-            } catch (error) {
-                showMessage(`Ошибка: ${error.message}`, 'error');
-            }
-        });
+            });
+        }
     } catch (error) {
+        updateTaskCreationVisibility();
         showMessage(`Ошибка загрузки: ${error.message}`, 'error');
     }
 }

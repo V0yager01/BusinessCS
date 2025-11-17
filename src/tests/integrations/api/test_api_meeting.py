@@ -39,4 +39,3 @@ def test_creator_added_to_meeting_participants(test_client, manager_user):
         params={"meeting_uuid": meeting_uuid},
         headers=_auth_headers(token),
     )
-

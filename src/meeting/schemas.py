@@ -29,5 +29,33 @@ class MeetingResponseShema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MeetingParticipantResponseShema(BaseModel):
+    uuid: UUID
+    user_uuid: UUID
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MeetingDetailResponseShema(MeetingResponseShema):
+    participants: list[MeetingParticipantResponseShema] = []
+
+
+class UpdateMeetingShema(CreateMeetingBaseShema):
+    pass
+
+
 class UsersToInviteShema(BaseModel):
     uuid: list[UUID]
+
+
+class MeetingParticipantShema(BaseModel):
+    user_uuid: UUID
+
+
+class UserMeetingResponseShema(BaseModel):
+    uuid: UUID
+    meeting_uuid: UUID
+    user_uuid: UUID
+    meeting: MeetingDetailResponseShema | None = None
+
+    model_config = ConfigDict(from_attributes=True)

@@ -2,6 +2,8 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import IntegrityError
 
+from src.security.exceptions import authorize_exception, exception_404
+
 from .repo import UserMeetingRepo, MeetingRepo
 
 
@@ -72,6 +74,46 @@ async def remove_meeting(meeting_uuid, session):
         await meetrepo.delete_model(meeting_uuid)
     except Exception as e:
         raise e
+
+
+async def update_meeting(meeting_uuid, payload, user_uuid, session):
+    repo = MeetingRepo(session)
+    usermeetrepo = UserMeetingRepo(session)
+    participant = await usermeetrepo.get_participant(meeting_uuid, user_uuid)
+    if not participant:
+        raise authorize_exception
+
+    start_at = payload['start_at']
+    if not isinstance(start_at, datetime):
+        raise ValueError("start_at должен быть datetime объектом")
+
+    if start_at.tzinfo is None:
+        start_at = start_at.replace(tzinfo=timezone.utc)
+
+    minutes = payload.get('meet_duration_minutes', 0)
+    hours = payload.get('meet_duration_hour', 0)
+    end_at = start_at + timedelta(hours=hours, minutes=minutes)
+
+    await repo.update_model(meeting_uuid, {
+        'start_at': start_at,
+        'end_at': end_at
+    })
+
+    updated = await repo.select_model_by_uuid(meeting_uuid)
+    return updated
+
+
+async def remove_participant_from_meeting(meeting_uuid, target_uuid, user_uuid, session):
+    usermeetrepo = UserMeetingRepo(session)
+    participant = await usermeetrepo.get_participant(meeting_uuid, user_uuid)
+    if not participant:
+        raise authorize_exception
+
+    target = await usermeetrepo.get_participant(meeting_uuid, target_uuid)
+    if not target:
+        raise exception_404
+
+    await usermeetrepo.delete_participant(meeting_uuid, target_uuid)
 
 
 def is_user_free(user_reserved_time, meeting_time):

@@ -42,11 +42,30 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('meetingsList').innerHTML = '<div class="message error">Ошибка загрузки API. Обновите страницу.</div>';
         return;
     }
+
+    if (typeof MeetingAPI.updateMeeting !== 'function') {
+        MeetingAPI.updateMeeting = function(meetingUuid, data) {
+            return apiRequest(`${API_BASE}/meeting/${meetingUuid}`, {
+                method: 'PATCH',
+                body: JSON.stringify(data)
+            });
+        };
+    }
+
+    if (typeof MeetingAPI.removeParticipant !== 'function') {
+        MeetingAPI.removeParticipant = function(meetingUuid, userUuid) {
+            return apiRequest(`${API_BASE}/meeting/${meetingUuid}/participant`, {
+                method: 'DELETE',
+                body: JSON.stringify({ user_uuid: userUuid })
+            });
+        };
+    }
     
     initMeetingsPage();
 });
 
 let meetings = [];
+const meetingIndex = new Map();
 
 async function loadMeetings() {
     try {
@@ -54,6 +73,7 @@ async function loadMeetings() {
         meetingsList.innerHTML = '<div class="loading">Загрузка...</div>';
         
         meetings = await MeetingAPI.getMyMeetings();
+        meetingIndex.clear();
         
         if (meetings.length === 0) {
             meetingsList.innerHTML = '<div class="empty">У вас пока нет встреч</div>';
@@ -64,12 +84,14 @@ async function loadMeetings() {
         const grid = meetingsList.querySelector('.grid');
         
         meetings.forEach(meetingData => {
-            const meeting = meetingData.meeting;
+            const meeting = meetingData.meeting || meetingData;
+            meetingIndex.set(meeting.uuid, meetingData);
             const card = document.createElement('div');
             card.className = 'card';
             
             const startAt = new Date(meeting.start_at);
             const endAt = new Date(meeting.end_at);
+            const participants = extractParticipants(meetingData);
             
             card.innerHTML = `
                 <div class="card-header">
@@ -78,8 +100,11 @@ async function loadMeetings() {
                 <div class="card-body">
                     <p><strong>Начало:</strong> ${startAt.toLocaleString('ru-RU')}</p>
                     <p><strong>Окончание:</strong> ${endAt.toLocaleString('ru-RU')}</p>
+                    <p><strong>Участников:</strong> ${participants.length}</p>
                 </div>
                 <div class="actions">
+                    <button onclick="openEditMeetingModal('${meeting.uuid}')" class="secondary">Редактировать</button>
+                    <button onclick="openAddParticipantModal('${meeting.uuid}')">Добавить участника</button>
                     <button onclick="deleteMeeting('${meeting.uuid}')" class="danger">Удалить</button>
                 </div>
             `;
@@ -150,6 +175,212 @@ function showMessage(text, type) {
         messageDiv.textContent = '';
         messageDiv.className = '';
     }, 5000);
+}
+
+function extractParticipants(meetingRecord) {
+    if (!meetingRecord) {
+        return [];
+    }
+    if (meetingRecord.meeting && Array.isArray(meetingRecord.meeting.participants)) {
+        return meetingRecord.meeting.participants;
+    }
+    if (Array.isArray(meetingRecord.participants)) {
+        return meetingRecord.participants;
+    }
+    return [];
+}
+
+function openEditMeetingModal(meetingUuid) {
+    const record = meetingIndex.get(meetingUuid);
+    if (!record) {
+        showMessage('Данные встречи не найдены. Обновите список.', 'error');
+        return;
+    }
+    const meeting = record.meeting || record;
+    const participants = extractParticipants(record);
+    const startDate = new Date(meeting.start_at);
+    const endDate = new Date(meeting.end_at);
+    const durationMs = Math.max(0, endDate.getTime() - startDate.getTime());
+    const durationHour = Math.floor(durationMs / 3600000);
+    const durationMinutes = Math.floor((durationMs % 3600000) / 60000) || 0;
+    const localStart = new Date(startDate.getTime() - startDate.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'meetingEditModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Редактировать встречу</h3>
+                <button onclick="closeMeetingEditModal()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editMeetingForm">
+                    <div class="form-group">
+                        <label for="editMeetingStart">Начало:</label>
+                        <input type="datetime-local" id="editMeetingStart" name="start_at" value="${localStart}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editMeetingDurationHour">Длительность (часы):</label>
+                        <input type="number" id="editMeetingDurationHour" name="meet_duration_hour" min="0" value="${durationHour}">
+                    </div>
+                    <div class="form-group">
+                        <label for="editMeetingDurationMinutes">Длительность (минуты):</label>
+                        <input type="number" id="editMeetingDurationMinutes" name="meet_duration_minutes" min="0" value="${durationMinutes}">
+                    </div>
+                    <div class="actions">
+                        <button type="submit">Сохранить</button>
+                        <button type="button" onclick="closeMeetingEditModal()" class="secondary">Отмена</button>
+                    </div>
+                </form>
+                <div style="margin-top: 2rem;">
+                    <h4>Участники</h4>
+                    <div id="meetingParticipantsList">
+                        ${renderParticipantsList(meetingUuid, participants)}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('editMeetingForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const startValue = form.start_at.value;
+        const hour = parseInt(form.meet_duration_hour.value, 10) || 0;
+        const minutes = parseInt(form.meet_duration_minutes.value, 10) || 0;
+        if (!startValue) {
+            showMessage('Укажите дату и время начала', 'error');
+            return;
+        }
+        if (hour === 0 && minutes === 0) {
+            showMessage('Длительность встречи должна быть больше нуля', 'error');
+            return;
+        }
+        try {
+            const payload = {
+                start_at: new Date(startValue).toISOString(),
+                meet_duration_hour: hour,
+                meet_duration_minutes: minutes
+            };
+            await MeetingAPI.updateMeeting(meetingUuid, payload);
+            closeMeetingEditModal();
+            showMessage('Встреча обновлена', 'success');
+            await loadMeetings();
+        } catch (error) {
+            showMessage(`Ошибка: ${error.message}`, 'error');
+        }
+    });
+}
+
+function renderParticipantsList(meetingUuid, participants) {
+    if (!participants.length) {
+        return '<div class="empty">Участники не добавлены</div>';
+    }
+    return `
+        <div class="grid">
+            ${participants.map((participant) => `
+                <div class="card">
+                    <div class="card-body">
+                        <p><strong>UUID:</strong> ${participant.user_uuid || participant.uuid}</p>
+                    </div>
+                    <div class="actions">
+                        <button class="danger" onclick="removeParticipantFromMeeting('${meetingUuid}', '${participant.user_uuid || participant.uuid}')">
+                            Удалить
+                        </button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+async function removeParticipantFromMeeting(meetingUuid, userUuid) {
+    if (!confirm('Удалить участника из встречи?')) {
+        return;
+    }
+    try {
+        await MeetingAPI.removeParticipant(meetingUuid, userUuid);
+        showMessage('Участник удален', 'success');
+        await loadMeetings();
+        const participantsContainer = document.getElementById('meetingParticipantsList');
+        if (participantsContainer) {
+            const updatedRecord = meetingIndex.get(meetingUuid);
+            participantsContainer.innerHTML = renderParticipantsList(
+                meetingUuid,
+                extractParticipants(updatedRecord)
+            );
+        } else {
+            closeMeetingEditModal();
+        }
+    } catch (error) {
+        showMessage(`Ошибка: ${error.message}`, 'error');
+    }
+}
+
+function closeMeetingEditModal() {
+    const modal = document.getElementById('meetingEditModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function openAddParticipantModal(meetingUuid) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'meetingParticipantModal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Добавить участника</h3>
+                <button onclick="closeMeetingParticipantModal()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addParticipantForm">
+                    <div class="form-group">
+                        <label for="participantUuid">UUID пользователя:</label>
+                        <input type="text" id="participantUuid" name="user_uuid" required placeholder="Введите UUID пользователя">
+                    </div>
+                    <div class="actions">
+                        <button type="submit">Добавить</button>
+                        <button type="button" onclick="closeMeetingParticipantModal()" class="secondary">Отмена</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('addParticipantForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userUuid = e.target.user_uuid.value.trim();
+        if (!userUuid) {
+            showMessage('Введите UUID пользователя', 'error');
+            return;
+        }
+        try {
+            const response = await MeetingAPI.inviteUsers(meetingUuid, [userUuid]);
+            if (response.error && response.error.includes(userUuid)) {
+                showMessage('Пользователь занят в указанный интервал или уже добавлен', 'error');
+                return;
+            }
+            showMessage('Участник добавлен', 'success');
+            closeMeetingParticipantModal();
+            await loadMeetings();
+        } catch (error) {
+            showMessage(`Ошибка: ${error.message}`, 'error');
+        }
+    });
+}
+
+function closeMeetingParticipantModal() {
+    const modal = document.getElementById('meetingParticipantModal');
+    if (modal) {
+        modal.remove();
+    }
 }
 </script>
 {% endblock %}
