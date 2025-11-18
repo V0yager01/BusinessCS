@@ -67,6 +67,7 @@ async def delete_meeting(meeting_uuid: UUID,
                          user: Annotated[str, Depends(user_auth)],
                          session=Depends(get_db)):
     await remove_meeting(meeting_uuid, session)
+    return {'detail': 'meeting deleted'}
 
 
 @router.patch('/{meeting_uuid}')

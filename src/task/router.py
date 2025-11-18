@@ -61,6 +61,7 @@ async def delete_task(task_uuid: UUID,
                       user: Annotated[str, Depends(user_is_author)],
                       session=Depends(get_db)):
     await remove_task(task_uuid, session)
+    return {'detail': 'task deleted'}
 
 
 @router.patch('/{task_uuid}/performer')

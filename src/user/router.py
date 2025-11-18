@@ -33,6 +33,7 @@ async def get_token(user_credentials: ProvideUserCredShema,
 async def delete_user(user: Annotated[str, Depends(user_auth)],
                       session=Depends(get_db)):
     await remove_user(user.uuid, session)
+    return {'detail': 'user deleted'}
 
 
 @router.get('/check_auth')

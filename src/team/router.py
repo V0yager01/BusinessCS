@@ -48,6 +48,7 @@ async def remove_user(userteamuuid: UUID,
                       user: Annotated[str, Depends(user_is_manager)],
                       session=Depends(get_db)) -> None:
     await remove_user_to_team(userteamuuid, session)
+    return {'detail': 'user removed'}
 
 
 @router.patch('/user')
